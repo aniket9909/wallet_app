@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:wallet_app/routes/app_routes.dart';
-import 'package:wallet_app/core/utils/view_imports.dart';
-import 'package:wallet_app/view/home.dart';
+import 'package:ewallet/routes/app_routes.dart';
+import 'package:ewallet/core/utils/view_imports.dart';
+import 'package:ewallet/view/home.dart';
 class AppPages {
   static Map<String , WidgetBuilder> pageList ={
     AppRoutes.splashScreen :(context)=>SplashScreen(),

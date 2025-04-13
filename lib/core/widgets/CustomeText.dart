@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:wallet_app/core/utils/custome_colors.dart';
+import 'package:ewallet/core/utils/custome_colors.dart';
 
 // Common Text Widget
 class CommonText extends StatelessWidget {

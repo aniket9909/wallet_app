@@ -1,4 +1,4 @@
-package com.example.wallet_app
+package com.aniket.ewallet
 
 import io.flutter.embedding.android.FlutterActivity
 

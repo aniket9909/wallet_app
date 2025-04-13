@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
-import 'package:wallet_app/viewmodels/splash_screen_view_model.dart';
+import 'package:ewallet/viewmodels/splash_screen_view_model.dart';
 
 class SplashScreen extends StatelessWidget {
   @override

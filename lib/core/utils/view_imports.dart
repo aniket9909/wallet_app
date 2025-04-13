@@ -1,2 +1,2 @@
-export 'package:wallet_app/view/splash_screen.dart';
-export 'package:wallet_app/view/home.dart';
+export 'package:ewallet/view/splash_screen.dart';
+export 'package:ewallet/view/home.dart';

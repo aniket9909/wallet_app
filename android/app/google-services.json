@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1064861195222",
+    "project_id": "ewallet-2d1f1",
+    "storage_bucket": "ewallet-2d1f1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1064861195222:android:d3ab7e24db254fc621a277",
+        "android_client_info": {
+          "package_name": "com.aniket.ewallet"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCupnof5EtOkIQVdFXOdLTtglgK1xjx95A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1064861195222:android:8e5441c072fd910821a277",
+        "android_client_info": {
+          "package_name": "com.example.ewallet"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCupnof5EtOkIQVdFXOdLTtglgK1xjx95A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
