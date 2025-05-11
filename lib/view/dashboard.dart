@@ -1,4 +1,3 @@
-import 'package:ewallet/models/expense_model.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ewallet/core/widgets/CUstomerButton.dart';
@@ -35,7 +34,6 @@ class _DashboardState extends State<Dashboard> {
           ),
         ],
       ),
-    
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           showAddwalletDialog(vm);
@@ -90,109 +88,166 @@ class _DashboardState extends State<Dashboard> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Container(
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[200],
-                                  borderRadius: BorderRadius.circular(60),
-                                ),
-                                child: Row(
-                                  children: [
-                                    SizedBox(width: 10),
-                                    CommonText(
-                                      text: "This week",
-                                      color: context.customColors.buttonColor,
-                                      fontSize: 15,
-                                    ),
-                                    Icon(
+                                // padding: EdgeInsets.symmetric(
+                                //     horizontal: 16, vertical: 8),
+                                // decoration: BoxDecoration(
+                                //   color: Colors.grey[200],
+                                //   borderRadius: BorderRadius.circular(60),
+                                // ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: vm.selectedPeriod,
+                                    items: [
+                                      DropdownMenuItem(
+                                        value: "this_week",
+                                        child: CommonText(
+                                          text: "This week",
+                                          color:
+                                              context.customColors.buttonColor,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: "this_month",
+                                        child: CommonText(
+                                          text: "This month",
+                                          color:
+                                              context.customColors.buttonColor,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: "last_week",
+                                        child: CommonText(
+                                          text: "Last week",
+                                          color:
+                                              context.customColors.buttonColor,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: "last_month",
+                                        child: CommonText(
+                                          text: "Last month",
+                                          color:
+                                              context.customColors.buttonColor,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: "half_year",
+                                        child: CommonText(
+                                          text: "Half year",
+                                          color:
+                                              context.customColors.buttonColor,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: "full_year",
+                                        child: CommonText(
+                                          text: "Full year",
+                                          color:
+                                              context.customColors.buttonColor,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                    ],
+                                    onChanged: (value) {
+                                      if (value != null) {
+                                        vm.changePeriod(value);
+                                      }
+                                    },
+                                    icon: Icon(
                                       Icons.keyboard_arrow_down_rounded,
                                       color: context.customColors.buttonColor,
                                     ),
-                                  ],
+                                  ),
                                 ),
                               ),
                               Text("07 jule - 14 jule"),
-                            ],
-                          ),
-                          SizedBox(
-                            height: 25,
-                          ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
+                            ]),
+                              SizedBox(
+                                height: 25,
+                              ),
                               Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
                                 children: [
-                                  Container(
-                                    padding: EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(
-                                      Icons.arrow_downward,
-                                      color: Colors.white,
-                                      size: 30,
-                                    ),
-                                  ),
-                                  SizedBox(width: 10),
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                  Row(
                                     children: [
-                                      CommonText(
-                                        text: "Income",
-                                        color: Colors.grey,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
+                                      Container(
+                                        padding: EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          Icons.arrow_downward,
+                                          color: Colors.white,
+                                          size: 30,
+                                        ),
                                       ),
-                                      CommonText(
-                                        text: '${vm.totalIncome}',
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black,
+                                      SizedBox(width: 10),
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          CommonText(
+                                            text: "Income",
+                                            color: Colors.grey,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                          CommonText(
+                                            text: '${vm.totalIncome}',
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black,
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: context.customColors.redColor,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          Icons.arrow_upward,
+                                          color: Colors.white,
+                                          size: 30,
+                                        ),
+                                      ),
+                                      SizedBox(width: 10),
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          CommonText(
+                                            text: "Speding",
+                                            color: Colors.grey,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                          CommonText(
+                                            text: '${vm.totalExpense}',
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black,
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
                                 ],
                               ),
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: context.customColors.redColor,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(
-                                      Icons.arrow_upward,
-                                      color: Colors.white,
-                                      size: 30,
-                                    ),
-                                  ),
-                                  SizedBox(width: 10),
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      CommonText(
-                                        text: "Speding",
-                                        color: Colors.grey,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                      CommonText(
-                                        text: '${vm.totalExpense}',
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
                             ],
-                          ),
-                        ],
+                          
                       ),
                     ),
                   ],
@@ -222,7 +277,6 @@ class _DashboardState extends State<Dashboard> {
                           onPressed: () {
                             vm.changeTab('income');
                           },
-
                           backgourndColor: Colors.grey[200],
                           textColor: Color(0xff243972),
                           isActive: vm.tabType == 'income' ? true : false,
@@ -293,7 +347,9 @@ class _DashboardState extends State<Dashboard> {
                                   '${expense.amount}',
                                   style: TextStyle(
                                     fontSize: 18,
-                                    color: expense.category == 'Income' ? Colors.green : context.customColors.redColor,
+                                    color: expense.category == 'Income'
+                                        ? Colors.green
+                                        : context.customColors.redColor,
                                     fontWeight: FontWeight.normal,
                                   ),
                                 ),

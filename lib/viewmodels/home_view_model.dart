@@ -22,7 +22,7 @@ class DashboardViewModel extends ChangeNotifier {
   double totalCash = 0.0;
   double totalCredit = 0.0;
   double totalDebit = 0.0;
-
+ String selectedPeriod = "this_week";
   TextEditingController noteController = TextEditingController();
 
   List<ExpenseModel> _expenses = [];
@@ -37,7 +37,10 @@ class DashboardViewModel extends ChangeNotifier {
       calculate();
     });
   }
-
+  changePeriod(String period) {
+    selectedPeriod = period;
+    notifyListeners();
+  }
   Future<void> addExpense(ExpenseModel expense) async {
     var result = await _firebaseService.addExpense("123", expense);
     notifyListeners();
