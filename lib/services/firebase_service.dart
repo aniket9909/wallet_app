@@ -8,7 +8,8 @@ class FirebaseService {
   FirebaseService._privateConstructor();
 
   // Singleton instance
-  static final FirebaseService _instance = FirebaseService._privateConstructor();
+  static final FirebaseService _instance =
+      FirebaseService._privateConstructor();
 
   // Factory constructor to return the same instance
   factory FirebaseService() {
@@ -24,6 +25,7 @@ class FirebaseService {
         .collection('expenses')
         .add(expense.toMap());
   }
+
   Future<void> addIncome(String userId, IncomeModel expense) async {
     await _firestore
         .collection('wallet')
@@ -31,6 +33,7 @@ class FirebaseService {
         .collection('income')
         .add(expense.toMap());
   }
+
   Stream<List<IncomeModel>> getIncome(String userId) {
     return _firestore
         .collection('wallet')

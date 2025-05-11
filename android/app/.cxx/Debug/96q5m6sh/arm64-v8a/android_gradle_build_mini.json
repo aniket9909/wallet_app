@@ -1,0 +1,20 @@
+{
+  "buildFiles": [
+    "/home/aniket/codes/personal/flutter/packages/flutter_tools/gradle/src/main/groovy/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/home/aniket/Android/Sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/home/aniket/codes/personal/wallet_app/android/app/.cxx/Debug/96q5m6sh/arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/home/aniket/Android/Sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/home/aniket/codes/personal/wallet_app/android/app/.cxx/Debug/96q5m6sh/arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {}
+}

@@ -19,23 +19,24 @@ class CustomerButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: isActive ?? true ? onPressed : null,
+      onTap: onPressed,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
           color: (isActive ?? true)
-              ? backgourndColor ?? Colors.blue
-              : (backgourndColor ?? Colors.blue).withOpacity(0.5),
+              ? Color(0xff243972) 
+              : (Colors.grey[200] ?? Colors.blue).withOpacity(0.5),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 16,
+            fontWeight: FontWeight.bold,
             color: (isActive ?? true)
-                ? textColor ?? Colors.white
-                : (textColor ?? Colors.white).withOpacity(0.5),
+                ? Colors.white  
+                : (Color(0xff243972)).withOpacity(0.5),
           ),
         ),
       ),

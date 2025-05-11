@@ -24,12 +24,13 @@ final ThemeData lightTheme = ThemeData(
   extensions: [
     CustomColors(
       textColor: Colors.white,
+      primaryColor: Color(0xff243972),
       buttonColor: Color(0xff243972),
       cardColor: Colors.white,
       greenColor: Color(0xff41BE06),
       redColor: Color(0xffEB1F39),
         titleColor: Color(0xff1B2736),
-      subtitleColor: Color(0xff6C757D),
+      subtitleColor: Color(0xff6C757D),   
       secondaryColor: Color(0xffA9A9A9),
 
     )

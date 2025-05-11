@@ -23,7 +23,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => ExpenseViewModel('123')),
+        ChangeNotifierProvider(create: (_) => DashboardViewModel('123')),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,

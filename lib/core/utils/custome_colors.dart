@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 @immutable
 class CustomColors extends ThemeExtension<CustomColors> {
   final Color? textColor;
+  final Color? primaryColor;
   final Color? buttonColor;
   final Color? cardColor;
   final Color? greenColor;
@@ -13,6 +14,7 @@ class CustomColors extends ThemeExtension<CustomColors> {
 
   const CustomColors({
     required this.textColor,
+    required this.primaryColor,
     required this.buttonColor,
     required this.cardColor,
     required this.greenColor,
@@ -25,6 +27,7 @@ class CustomColors extends ThemeExtension<CustomColors> {
   @override
   CustomColors copyWith({
     Color? textColor,
+    Color? primaryColor,
     Color? buttonColor,
     Color? cardColor,
     Color? greenColor,
@@ -35,6 +38,7 @@ class CustomColors extends ThemeExtension<CustomColors> {
   }) {
     return CustomColors(
       textColor: textColor ?? this.textColor,
+      primaryColor: primaryColor ?? this.primaryColor,
       buttonColor: buttonColor ?? this.buttonColor,
       cardColor: cardColor ?? this.cardColor,
       greenColor: greenColor ?? this.greenColor,
@@ -50,6 +54,7 @@ class CustomColors extends ThemeExtension<CustomColors> {
     if (other is! CustomColors) return this;
     return CustomColors(
       textColor: Color.lerp(textColor, other.textColor, t),
+      primaryColor: Color.lerp(primaryColor, other.primaryColor, t),
       buttonColor: Color.lerp(buttonColor, other.buttonColor, t),
       cardColor: Color.lerp(cardColor, other.cardColor, t),
       greenColor: Color.lerp(greenColor, other.greenColor, t),
