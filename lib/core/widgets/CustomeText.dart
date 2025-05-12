@@ -34,6 +34,7 @@ class CommonText extends StatelessWidget {
       textAlign: textAlign ?? TextAlign.start,
       style: TextStyle(
         fontSize: fontSize,
+        fontFamily: 'IBMPlexSans',
         fontWeight: fontWeight,
         color: color ?? customColors.textColor, // Default to textColor
       ),

@@ -90,6 +90,7 @@ class DashboardViewModel extends ChangeNotifier {
       final expense = ExpenseModel(
         id: UniqueKey().toString(),
         title: descriptionController.text,
+        fromWalletId: "wallet_cash",
         amount: double.tryParse(amountController.text) ?? 0.0,
         category: categoryController.text,
         date: DateTime.now(),

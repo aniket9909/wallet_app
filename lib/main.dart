@@ -1,4 +1,5 @@
 import 'package:ewallet/firebase_options.dart';
+import 'package:ewallet/viewmodels/all_wallet_view_model.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -24,6 +25,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => DashboardViewModel('123')),
+        ChangeNotifierProvider(create: (_) => AllWalletViewModel()),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,

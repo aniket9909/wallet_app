@@ -10,7 +10,7 @@ final ThemeData lightTheme = ThemeData(
     bodyLarge: TextStyle(color: Colors.black),
     bodyMedium: TextStyle(color: Colors.black87),
   ),
-  
+  fontFamily: 'IBMPlexSans',
   appBarTheme: AppBarTheme(
     backgroundColor: Color(0xff243972),
     titleTextStyle: TextStyle(color: Colors.white, fontSize: 20),

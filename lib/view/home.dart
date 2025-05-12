@@ -1,6 +1,7 @@
 import 'package:ewallet/core/utils/color_extension.dart';
 import 'package:ewallet/core/utils/view_imports.dart';
 import 'package:ewallet/core/widgets/CustomeText.dart';
+import 'package:ewallet/view/wallets.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -17,9 +18,9 @@ class _HomeState extends State<Home> {
 
   final List<Widget> _pages = [
     Dashboard(),
-    Center(child: Image.asset('assets/search_image.png')),
-    Center(child: Image.asset('assets/notifications_image.png')),
-    Center(child: Image.asset('assets/settings_image.png')),
+    Center(child: Text('Debt Tracker')),
+    AllWallets(),
+    Center(child: Text('Smart Save')),
   ];
 
   @override

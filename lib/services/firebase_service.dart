@@ -25,6 +25,13 @@ class FirebaseService {
         .collection('expenses')
         .add(expense.toMap());
   }
+   Future<void> wallet(String userId, ExpenseModel expense) async {
+    await _firestore
+        .collection('wallet')
+        .doc(userId)
+        .collection('expenses')
+        .add(expense.toMap());
+  }
 
   Future<void> addIncome(String userId, IncomeModel expense) async {
     await _firestore

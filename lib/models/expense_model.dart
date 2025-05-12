@@ -2,6 +2,7 @@
 class ExpenseModel {
   final String id;
   final String title;
+  final String fromWalletId;
   final double amount;
   final String category;
   final DateTime date;
@@ -10,6 +11,7 @@ class ExpenseModel {
   ExpenseModel({
     required this.id,
     required this.title,
+    required this.fromWalletId,
     required this.amount,
     required this.category,
     required this.date,
@@ -20,6 +22,8 @@ class ExpenseModel {
     return ExpenseModel(
       id: docId,
       title: map['title'],
+
+      fromWalletId: map['fromWalletId'],
       amount: map['amount'],
       category: map['category'],
       date: DateTime.parse(map['date']),
@@ -31,6 +35,7 @@ class ExpenseModel {
     return {
       'title': title,
       'amount': amount,
+      'fromWalletId': fromWalletId,
       'category': category,
       'date': date.toIso8601String(),
       'note': note,
