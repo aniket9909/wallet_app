@@ -70,6 +70,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '1064861195222',
     projectId: 'ewallet-2d1f1',
     storageBucket: 'ewallet-2d1f1.firebasestorage.app',
-    iosBundleId: 'com.example.walletApp',
+    iosBundleId: 'com.aniket.ewallet',
   );
 }

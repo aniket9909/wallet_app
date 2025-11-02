@@ -1,0 +1,2 @@
+/home/aniket/codes/personal/wallet_app/android/app/.cxx/Debug/1n703k5l/arm64-v8a/CMakeFiles/edit_cache.dir
+/home/aniket/codes/personal/wallet_app/android/app/.cxx/Debug/1n703k5l/arm64-v8a/CMakeFiles/rebuild_cache.dir

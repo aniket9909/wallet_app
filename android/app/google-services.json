@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "1064861195222",
+    "firebase_url": "https://ewallet-2d1f1-default-rtdb.asia-southeast1.firebasedatabase.app",
     "project_id": "ewallet-2d1f1",
     "storage_bucket": "ewallet-2d1f1.firebasestorage.app"
   },
@@ -12,7 +13,12 @@
           "package_name": "com.aniket.ewallet"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1064861195222-00gnf09te2pcu4catredaoih4q7t1s5r.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCupnof5EtOkIQVdFXOdLTtglgK1xjx95A"
@@ -20,7 +26,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1064861195222-00gnf09te2pcu4catredaoih4q7t1s5r.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1064861195222-1ofgppnksic7nnd4sb40e568lnnldnru.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.walletApp"
+              }
+            }
+          ]
         }
       }
     },
@@ -28,10 +46,15 @@
       "client_info": {
         "mobilesdk_app_id": "1:1064861195222:android:8e5441c072fd910821a277",
         "android_client_info": {
-          "package_name": "com.example.ewallet"
+          "package_name": "com.example.wallet_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1064861195222-00gnf09te2pcu4catredaoih4q7t1s5r.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCupnof5EtOkIQVdFXOdLTtglgK1xjx95A"
@@ -39,7 +62,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1064861195222-00gnf09te2pcu4catredaoih4q7t1s5r.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1064861195222-1ofgppnksic7nnd4sb40e568lnnldnru.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.walletApp"
+              }
+            }
+          ]
         }
       }
     }
