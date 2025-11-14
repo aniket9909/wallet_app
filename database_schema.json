@@ -1,0 +1,103 @@
+{
+  "users": {
+    "{userId}": {
+      "wallet": {
+        "total_balance": 0,
+        "total_income": 0,
+        "total_expense": 0,
+        "monthly_income": 0,
+        "monthly_expense": 0
+      },
+      "accounts": {
+        "{accountId}": {
+          "name": "Bank Account",
+          "balance": 0,
+          "type": "Bank",
+          "icon": null,
+          "color": null
+        }
+      },
+      "transactions": {
+        "{transactionId}": {
+          "type": "credit",
+          "amount": 0,
+          "description": "Sample Transaction",
+          "category": "Income",
+          "account": "Bank Account",
+          "date": "2025-05-11T12:00:00.000Z",
+          "note": null
+        }
+      },
+      "goals": {
+        "{goalId}": {
+          "name": "Sample Goal",
+          "target_amount": 10000,
+          "monthly_income": 5000,
+          "monthly_expense": 3000,
+          "time_period": 6,
+          "saved_so_far": 0,
+          "created_date": "2025-05-11T12:00:00.000Z",
+          "target_date": null
+        }
+      },
+      "settings": {
+        "notifications": true,
+        "dark_mode": false,
+        "currency": "₹",
+        "bank_details": {
+          "account_number": "",
+          "ifsc": "",
+          "bank_name": ""
+        },
+        "card_details": {
+          "card_number": "",
+          "expiry": "",
+          "card_type": "Debit"
+        },
+        "expense_types": [
+          "Food",
+          "Bills",
+          "Shopping",
+          "Travel",
+          "Entertainment",
+          "Health",
+          "Other"
+        ],
+        "profile": {
+          "name": "",
+          "email": "",
+          "phone": null,
+          "avatar": null
+        }
+      },
+      "debts": {
+        "{debtId}": {
+          "type": "borrow",
+          "person_name": "John Doe",
+          "amount": 5000,
+          "paid_amount": 0,
+          "description": "Loan for bike",
+          "date": "2025-05-11T12:00:00.000Z",
+          "due_date": "2025-12-31T12:00:00.000Z",
+          "note": null,
+          "is_paid": false
+        }
+      },
+      "investments": {
+        "{investmentId}": {
+          "type": "mutual_fund",
+          "name": "SBI Mutual Fund",
+          "invested_amount": 50000,
+          "current_value": 55000,
+          "purchase_date": "2025-01-01T12:00:00.000Z",
+          "maturity_date": "2026-01-01T12:00:00.000Z",
+          "interest_rate": 10.5,
+          "description": "Equity fund",
+          "account": "Bank Account",
+          "note": null
+        }
+      }
+    }
+  }
+}
+

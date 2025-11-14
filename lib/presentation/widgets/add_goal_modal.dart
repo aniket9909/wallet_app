@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:uuid/uuid.dart';
 import '../../logic/cubits/savings_goal_cubit.dart';
 import '../../data/models/savings_goal_model.dart';
 
@@ -269,7 +268,7 @@ class _AddGoalModalState extends State<AddGoalModal> {
   void _submitGoal() {
     if (_formKey.currentState!.validate()) {
       final goal = SavingsGoalModel(
-        id: const Uuid().v4(),
+        id: '', // Will be set by Firebase key
         name: _nameController.text,
         targetAmount: double.parse(_targetAmountController.text),
         monthlyIncome: double.parse(_monthlyIncomeController.text),
@@ -279,20 +278,27 @@ class _AddGoalModalState extends State<AddGoalModal> {
         createdDate: DateTime.now(),
       );
 
+      // Close modal first
+      Navigator.pop(context);
+
+      // Add goal (stream will update UI automatically)
       context.read<SavingsGoalCubit>().addGoal(goal);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Savings goal created successfully!'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-
-      Navigator.pop(context);
+      // Show success message after a brief delay
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Savings goal created successfully!'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
+      });
     }
   }
 }

@@ -64,27 +64,44 @@ class AccountCubit extends Cubit<AccountState> {
   Future<void> addAccount(AccountModel account) async {
     try {
       await _repository.addAccount(account);
-      emit(AccountOperationSuccess('Account added successfully'));
+      // Don't emit success state - let the stream handle the update
+      // The stream will automatically emit AccountLoaded with updated data
     } catch (e) {
       emit(AccountError(e.toString()));
+      // After showing error, reload to get back to loaded state
+      Future.delayed(const Duration(seconds: 2), () {
+        if (state is AccountError) {
+          loadAccounts();
+        }
+      });
     }
   }
 
   Future<void> updateAccount(AccountModel account) async {
     try {
       await _repository.updateAccount(account);
-      emit(AccountOperationSuccess('Account updated successfully'));
+      // Don't emit success state - let the stream handle the update
     } catch (e) {
       emit(AccountError(e.toString()));
+      Future.delayed(const Duration(seconds: 2), () {
+        if (state is AccountError) {
+          loadAccounts();
+        }
+      });
     }
   }
 
   Future<void> deleteAccount(String accountId) async {
     try {
       await _repository.deleteAccount(accountId);
-      emit(AccountOperationSuccess('Account deleted successfully'));
+      // Don't emit success state - let the stream handle the update
     } catch (e) {
       emit(AccountError(e.toString()));
+      Future.delayed(const Duration(seconds: 2), () {
+        if (state is AccountError) {
+          loadAccounts();
+        }
+      });
     }
   }
 

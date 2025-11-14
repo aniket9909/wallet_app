@@ -13,6 +13,8 @@ import 'data/repositories/account_repository.dart';
 import 'data/repositories/transaction_repository.dart';
 import 'data/repositories/savings_goal_repository.dart';
 import 'data/repositories/settings_repository.dart';
+import 'data/repositories/debt_repository.dart';
+import 'data/repositories/investment_repository.dart';
 
 // Logic Layer
 import 'logic/cubits/wallet_cubit.dart';
@@ -20,6 +22,8 @@ import 'logic/cubits/account_cubit.dart';
 import 'logic/cubits/transaction_cubit.dart';
 import 'logic/cubits/savings_goal_cubit.dart';
 import 'logic/cubits/settings_cubit.dart';
+import 'logic/cubits/debt_cubit.dart';
+import 'logic/cubits/investment_cubit.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -66,6 +70,16 @@ class MyApp extends StatelessWidget {
             context.read<FirebaseRealtimeService>(),
           ),
         ),
+        RepositoryProvider<DebtRepository>(
+          create: (context) => DebtRepository(
+            context.read<FirebaseRealtimeService>(),
+          ),
+        ),
+        RepositoryProvider<InvestmentRepository>(
+          create: (context) => InvestmentRepository(
+            context.read<FirebaseRealtimeService>(),
+          ),
+        ),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -93,6 +107,16 @@ class MyApp extends StatelessWidget {
             create: (context) => SettingsCubit(
               context.read<SettingsRepository>(),
             )..loadSettings(),
+          ),
+          BlocProvider<DebtCubit>(
+            create: (context) => DebtCubit(
+              context.read<DebtRepository>(),
+            )..loadDebts(),
+          ),
+          BlocProvider<InvestmentCubit>(
+            create: (context) => InvestmentCubit(
+              context.read<InvestmentRepository>(),
+            )..loadInvestments(),
           ),
         ],
         child: BlocBuilder<SettingsCubit, SettingsState>(

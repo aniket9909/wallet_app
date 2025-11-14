@@ -1,30 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../logic/cubits/transaction_cubit.dart';
-import '../../logic/cubits/account_cubit.dart';
-import '../../logic/cubits/settings_cubit.dart';
-import '../../data/models/transaction_model_new.dart';
+import 'package:intl/intl.dart';
+import '../../logic/cubits/debt_cubit.dart';
+import '../../data/models/debt_model.dart';
 
-class AddTransactionModal extends StatefulWidget {
-  const AddTransactionModal({super.key});
+class AddDebtModal extends StatefulWidget {
+  const AddDebtModal({super.key});
 
   @override
-  State<AddTransactionModal> createState() => _AddTransactionModalState();
+  State<AddDebtModal> createState() => _AddDebtModalState();
 }
 
-class _AddTransactionModalState extends State<AddTransactionModal> {
+class _AddDebtModalState extends State<AddDebtModal> {
   final _formKey = GlobalKey<FormState>();
+  final _personNameController = TextEditingController();
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _noteController = TextEditingController();
 
-  TransactionType _transactionType = TransactionType.debit;
-  String? _selectedCategory;
-  String? _selectedAccount;
+  DebtType _debtType = DebtType.borrow;
+  DateTime? _dueDate;
 
   @override
   void dispose() {
+    _personNameController.dispose();
     _amountController.dispose();
     _descriptionController.dispose();
     _noteController.dispose();
@@ -67,15 +67,37 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
                 const SizedBox(height: 24),
 
                 // Title
-                Text(
-                  'Add Transaction',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: _debtType == DebtType.borrow
+                            ? Colors.red[50]
+                            : Colors.green[50],
+                        borderRadius: BorderRadius.circular(12),
                       ),
+                      child: Icon(
+                        _debtType == DebtType.borrow
+                            ? Icons.arrow_downward
+                            : Icons.arrow_upward,
+                        color: _debtType == DebtType.borrow
+                            ? Colors.red
+                            : Colors.green,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Add Debt',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 24),
 
-                // Transaction Type Toggle
+                // Debt Type Toggle
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
@@ -86,18 +108,18 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
                     children: [
                       Expanded(
                         child: _buildTypeButton(
-                          'Credit',
-                          TransactionType.credit,
+                          'I Owe',
+                          DebtType.borrow,
                           Icons.arrow_downward,
-                          Colors.green,
+                          Colors.red,
                         ),
                       ),
                       Expanded(
                         child: _buildTypeButton(
-                          'Debit',
-                          TransactionType.debit,
+                          'I\'m Owed',
+                          DebtType.lend,
                           Icons.arrow_upward,
-                          Colors.red,
+                          Colors.green,
                         ),
                       ),
                     ],
@@ -105,17 +127,40 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
                 ),
                 const SizedBox(height: 20),
 
-                // Amount Field
+                // Person Name
                 TextFormField(
-                  controller: _amountController,
-                  decoration: InputDecoration(
-                    labelText: 'Amount',
-                    prefixText: '₹ ',
+                  controller: _personNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Person Name',
+                    hintText: 'e.g., John Doe',
+                    prefixIcon: Icon(Icons.person_outline),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
                     ),
                     filled: true,
-                    fillColor: Colors.grey[50],
+                    fillColor: Color(0xFFF5F5F5),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter person name';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Amount
+                TextFormField(
+                  controller: _amountController,
+                  decoration: const InputDecoration(
+                    labelText: 'Amount',
+                    prefixText: '₹ ',
+                    prefixIcon: Icon(Icons.currency_rupee),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
+                    filled: true,
+                    fillColor: Color(0xFFF5F5F5),
                   ),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -128,16 +173,18 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
                 ),
                 const SizedBox(height: 16),
 
-                // Description Field
+                // Description
                 TextFormField(
                   controller: _descriptionController,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Description',
+                    hintText: 'e.g., Loan for bike',
+                    prefixIcon: Icon(Icons.description_outlined),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
                     ),
                     filled: true,
-                    fillColor: Colors.grey[50],
+                    fillColor: Color(0xFFF5F5F5),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -148,106 +195,56 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
                 ),
                 const SizedBox(height: 16),
 
-                // Category Dropdown
-                BlocBuilder<SettingsCubit, SettingsState>(
-                  builder: (context, state) {
-                    final categories = state is SettingsLoaded
-                        ? state.settings.expenseTypes
-                        : ['Food', 'Bills', 'Shopping', 'Travel'];
-
-                    return DropdownButtonFormField<String>(
-                      value: _selectedCategory,
-                      decoration: InputDecoration(
-                        labelText: 'Category',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                      ),
-                    items: categories.map<DropdownMenuItem<String>>((category) {
-                      return DropdownMenuItem<String>(
-                        value: category,
-                        child: Text(category),
-                      );
-                    }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedCategory = value;
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null) {
-                          return 'Please select category';
-                        }
-                        return null;
-                      },
+                // Due Date
+                InkWell(
+                  onTap: () async {
+                    final date = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 3650)),
                     );
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Account Dropdown
-                BlocBuilder<AccountCubit, AccountState>(
-                  builder: (context, state) {
-                    final accounts = state is AccountLoaded ? state.accounts : [];
-
-                    if (accounts.isEmpty) {
-                      return Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.orange[50],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Text(
-                          'No accounts available. Please add an account first.',
-                          style: TextStyle(color: Colors.orange),
-                        ),
-                      );
+                    if (date != null) {
+                      setState(() {
+                        _dueDate = date;
+                      });
                     }
-
-                    return DropdownButtonFormField<String>(
-                      value: _selectedAccount,
-                      decoration: InputDecoration(
-                        labelText: 'Account',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                      ),
-                      items: accounts.map<DropdownMenuItem<String>>((account) {
-                        return DropdownMenuItem<String>(
-                          value: account.name,
-                          child: Text(account.name),
-                        );
-                      }).toList(),
-                      onChanged: (String? value) {
-                        setState(() {
-                          _selectedAccount = value;
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null) {
-                          return 'Please select account';
-                        }
-                        return null;
-                      },
-                    );
                   },
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Due Date (Optional)',
+                      prefixIcon: Icon(Icons.calendar_today),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                      ),
+                      filled: true,
+                      fillColor: Color(0xFFF5F5F5),
+                    ),
+                    child: Text(
+                      _dueDate != null
+                          ? DateFormat('MMM dd, yyyy').format(_dueDate!)
+                          : 'Select due date',
+                      style: TextStyle(
+                        color: _dueDate != null
+                            ? Colors.black87
+                            : Colors.grey[600],
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
 
-                // Note Field (Optional)
+                // Note
                 TextFormField(
                   controller: _noteController,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Note (Optional)',
+                    prefixIcon: Icon(Icons.note_outlined),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
                     ),
                     filled: true,
-                    fillColor: Colors.grey[50],
+                    fillColor: Color(0xFFF5F5F5),
                   ),
                   maxLines: 2,
                 ),
@@ -258,7 +255,7 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: _submitTransaction,
+                    onPressed: _submitDebt,
                     style: ElevatedButton.styleFrom(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
@@ -266,7 +263,7 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
                       elevation: 0,
                     ),
                     child: const Text(
-                      'Add Transaction',
+                      'Add Debt',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -284,16 +281,16 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
 
   Widget _buildTypeButton(
     String label,
-    TransactionType type,
+    DebtType type,
     IconData icon,
     Color color,
   ) {
-    final isSelected = _transactionType == type;
+    final isSelected = _debtType == type;
 
     return GestureDetector(
       onTap: () {
         setState(() {
-          _transactionType = type;
+          _debtType = type;
         });
       },
       child: Container(
@@ -333,31 +330,33 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
     );
   }
 
-  void _submitTransaction() {
+  void _submitDebt() {
     if (_formKey.currentState!.validate()) {
-      final transaction = TransactionModelNew(
+      final debt = DebtModel(
         id: '', // Will be set by Firebase key
-        type: _transactionType,
+        type: _debtType,
+        personName: _personNameController.text,
         amount: double.parse(_amountController.text),
+        paidAmount: 0,
         description: _descriptionController.text,
-        category: _selectedCategory!,
-        account: _selectedAccount!,
         date: DateTime.now(),
+        dueDate: _dueDate,
         note: _noteController.text.isEmpty ? null : _noteController.text,
+        isPaid: false,
       );
 
       // Close modal first
       Navigator.pop(context);
 
-      // Add transaction (stream will update UI automatically)
-      context.read<TransactionCubit>().addTransaction(transaction);
+      // Add debt (stream will update UI automatically)
+      context.read<DebtCubit>().addDebt(debt);
 
-      // Show success message after a brief delay to ensure operation started
+      // Show success message after a brief delay
       Future.delayed(const Duration(milliseconds: 300), () {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Transaction added successfully!'),
+              content: const Text('Debt added successfully!'),
               backgroundColor: Colors.green,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(

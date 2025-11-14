@@ -353,20 +353,27 @@ class _GoalDetailsDialogState extends State<_GoalDetailsDialog> {
   void _updateProgress() {
     final amount = double.tryParse(_amountController.text);
     if (amount != null && amount > 0) {
-      context.read<SavingsGoalCubit>().updateProgress(widget.goal.id, amount);
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Progress updated successfully!'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-      
+      // Close dialog first
       Navigator.pop(context);
+
+      // Update progress (stream will update UI automatically)
+      context.read<SavingsGoalCubit>().updateProgress(widget.goal.id, amount);
+
+      // Show success message after a brief delay
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Progress updated successfully!'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
+      });
     }
   }
 }

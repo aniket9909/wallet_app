@@ -4,6 +4,8 @@ import 'dashboard_screen.dart';
 import 'accounts_screen.dart';
 import 'savings_screen.dart';
 import 'expense_tracker_screen.dart';
+import 'debt_screen.dart';
+import 'investment_screen.dart';
 import 'settings_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -19,6 +21,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _screens = const [
     DashboardScreen(),
     AccountsScreen(),
+    DebtScreen(),
+    InvestmentScreen(),
     SavingsScreen(),
     ExpenseTrackerScreen(),
     SettingsScreen(),
@@ -43,41 +47,60 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
           ),
-          child: NavigationBar(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: (index) {
+          child: BottomNavigationBar(
+            currentIndex: _selectedIndex,
+            onTap: (index) {
               setState(() {
                 _selectedIndex = index;
               });
             },
-            height: 70,
+            type: BottomNavigationBarType.fixed,
             elevation: 0,
             backgroundColor: Theme.of(context).colorScheme.surface,
-            indicatorColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-            destinations: const [
-              NavigationDestination(
+            selectedItemColor: Theme.of(context).colorScheme.primary,
+            unselectedItemColor: Colors.grey[600],
+            selectedLabelStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.normal,
+            ),
+            items: const [
+              BottomNavigationBarItem(
                 icon: Icon(Icons.dashboard_outlined),
-                selectedIcon: Icon(Icons.dashboard),
+                activeIcon: Icon(Icons.dashboard),
                 label: 'Dashboard',
               ),
-              NavigationDestination(
+              BottomNavigationBarItem(
                 icon: Icon(Icons.account_balance_wallet_outlined),
-                selectedIcon: Icon(Icons.account_balance_wallet),
+                activeIcon: Icon(Icons.account_balance_wallet),
                 label: 'Accounts',
               ),
-              NavigationDestination(
+              BottomNavigationBarItem(
+                icon: Icon(Icons.account_balance_outlined),
+                activeIcon: Icon(Icons.account_balance),
+                label: 'Debt',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.trending_up_outlined),
+                activeIcon: Icon(Icons.trending_up),
+                label: 'Investment',
+              ),
+              BottomNavigationBarItem(
                 icon: Icon(Icons.savings_outlined),
-                selectedIcon: Icon(Icons.savings),
+                activeIcon: Icon(Icons.savings),
                 label: 'Savings',
               ),
-              NavigationDestination(
+              BottomNavigationBarItem(
                 icon: Icon(Icons.receipt_long_outlined),
-                selectedIcon: Icon(Icons.receipt_long),
+                activeIcon: Icon(Icons.receipt_long),
                 label: 'Expenses',
               ),
-              NavigationDestination(
+              BottomNavigationBarItem(
                 icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
+                activeIcon: Icon(Icons.settings),
                 label: 'Settings',
               ),
             ],

@@ -5,6 +5,8 @@ import '../models/account_model.dart';
 import '../models/transaction_model_new.dart';
 import '../models/savings_goal_model.dart';
 import '../models/settings_model.dart';
+import '../models/debt_model.dart';
+import '../models/investment_model.dart';
 
 class FirebaseRealtimeService {
   final FirebaseDatabase _database;
@@ -200,6 +202,56 @@ class FirebaseRealtimeService {
 
   Future<void> updateSettings(SettingsModel settings) async {
     await _userRef.child('settings').set(settings.toJson());
+  }
+
+  // ============ DEBTS ============
+  Stream<List<DebtModel>> watchDebts() {
+    return _userRef.child('debts').onValue.map((event) {
+      if (event.snapshot.value == null) return [];
+      final data = event.snapshot.value as Map<dynamic, dynamic>;
+      return data.entries
+          .map((e) => DebtModel.fromJson(e.key, e.value))
+          .toList();
+    });
+  }
+
+  Future<String> addDebt(DebtModel debt) async {
+    final ref = _userRef.child('debts').push();
+    await ref.set(debt.toJson());
+    return ref.key!;
+  }
+
+  Future<void> updateDebt(DebtModel debt) async {
+    await _userRef.child('debts/${debt.id}').update(debt.toJson());
+  }
+
+  Future<void> deleteDebt(String debtId) async {
+    await _userRef.child('debts/$debtId').remove();
+  }
+
+  // ============ INVESTMENTS ============
+  Stream<List<InvestmentModel>> watchInvestments() {
+    return _userRef.child('investments').onValue.map((event) {
+      if (event.snapshot.value == null) return [];
+      final data = event.snapshot.value as Map<dynamic, dynamic>;
+      return data.entries
+          .map((e) => InvestmentModel.fromJson(e.key, e.value))
+          .toList();
+    });
+  }
+
+  Future<String> addInvestment(InvestmentModel investment) async {
+    final ref = _userRef.child('investments').push();
+    await ref.set(investment.toJson());
+    return ref.key!;
+  }
+
+  Future<void> updateInvestment(InvestmentModel investment) async {
+    await _userRef.child('investments/${investment.id}').update(investment.toJson());
+  }
+
+  Future<void> deleteInvestment(String investmentId) async {
+    await _userRef.child('investments/$investmentId').remove();
   }
 
   // ============ UTILITY METHODS ============

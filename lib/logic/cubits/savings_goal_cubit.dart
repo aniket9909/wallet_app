@@ -64,27 +64,44 @@ class SavingsGoalCubit extends Cubit<SavingsGoalState> {
   Future<void> addGoal(SavingsGoalModel goal) async {
     try {
       await _repository.addSavingsGoal(goal);
-      emit(SavingsGoalOperationSuccess('Goal added successfully'));
+      // Don't emit success state - let the stream handle the update
+      // The stream will automatically emit SavingsGoalLoaded with updated data
     } catch (e) {
       emit(SavingsGoalError(e.toString()));
+      // After showing error, reload to get back to loaded state
+      Future.delayed(const Duration(seconds: 2), () {
+        if (state is SavingsGoalError) {
+          loadGoals();
+        }
+      });
     }
   }
 
   Future<void> updateGoal(SavingsGoalModel goal) async {
     try {
       await _repository.updateSavingsGoal(goal);
-      emit(SavingsGoalOperationSuccess('Goal updated successfully'));
+      // Don't emit success state - let the stream handle the update
     } catch (e) {
       emit(SavingsGoalError(e.toString()));
+      Future.delayed(const Duration(seconds: 2), () {
+        if (state is SavingsGoalError) {
+          loadGoals();
+        }
+      });
     }
   }
 
   Future<void> deleteGoal(String goalId) async {
     try {
       await _repository.deleteSavingsGoal(goalId);
-      emit(SavingsGoalOperationSuccess('Goal deleted successfully'));
+      // Don't emit success state - let the stream handle the update
     } catch (e) {
       emit(SavingsGoalError(e.toString()));
+      Future.delayed(const Duration(seconds: 2), () {
+        if (state is SavingsGoalError) {
+          loadGoals();
+        }
+      });
     }
   }
 
@@ -93,10 +110,15 @@ class SavingsGoalCubit extends Cubit<SavingsGoalState> {
       final currentState = state;
       if (currentState is SavingsGoalLoaded) {
         await _repository.updateProgress(goalId, amount, currentState.goals);
-        emit(SavingsGoalOperationSuccess('Progress updated successfully'));
+        // Don't emit success state - let the stream handle the update
       }
     } catch (e) {
       emit(SavingsGoalError(e.toString()));
+      Future.delayed(const Duration(seconds: 2), () {
+        if (state is SavingsGoalError) {
+          loadGoals();
+        }
+      });
     }
   }
 

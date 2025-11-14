@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:uuid/uuid.dart';
 import '../../logic/cubits/account_cubit.dart';
 import '../../data/models/account_model.dart';
 
@@ -194,26 +193,33 @@ class _AddAccountModalState extends State<AddAccountModal> {
   void _submitAccount() {
     if (_formKey.currentState!.validate()) {
       final account = AccountModel(
-        id: const Uuid().v4(),
+        id: '', // Will be set by Firebase key
         name: _nameController.text,
         balance: double.parse(_balanceController.text),
         type: _selectedType,
       );
 
+      // Close modal first
+      Navigator.pop(context);
+
+      // Add account (stream will update UI automatically)
       context.read<AccountCubit>().addAccount(account);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Account added successfully!'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-
-      Navigator.pop(context);
+      // Show success message after a brief delay
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Account added successfully!'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
+      });
     }
   }
 }

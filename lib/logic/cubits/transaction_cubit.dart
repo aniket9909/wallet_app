@@ -66,27 +66,44 @@ class TransactionCubit extends Cubit<TransactionState> {
   Future<void> addTransaction(TransactionModelNew transaction) async {
     try {
       await _repository.addTransaction(transaction);
-      emit(TransactionOperationSuccess('Transaction added successfully'));
+      // Don't emit success state - let the stream handle the update
+      // The stream will automatically emit TransactionLoaded with updated data
     } catch (e) {
       emit(TransactionError(e.toString()));
+      // After showing error, reload to get back to loaded state
+      Future.delayed(const Duration(seconds: 2), () {
+        if (state is TransactionError) {
+          loadTransactions();
+        }
+      });
     }
   }
 
   Future<void> updateTransaction(TransactionModelNew transaction) async {
     try {
       await _repository.updateTransaction(transaction);
-      emit(TransactionOperationSuccess('Transaction updated successfully'));
+      // Don't emit success state - let the stream handle the update
     } catch (e) {
       emit(TransactionError(e.toString()));
+      Future.delayed(const Duration(seconds: 2), () {
+        if (state is TransactionError) {
+          loadTransactions();
+        }
+      });
     }
   }
 
   Future<void> deleteTransaction(String transactionId) async {
     try {
       await _repository.deleteTransaction(transactionId);
-      emit(TransactionOperationSuccess('Transaction deleted successfully'));
+      // Don't emit success state - let the stream handle the update
     } catch (e) {
       emit(TransactionError(e.toString()));
+      Future.delayed(const Duration(seconds: 2), () {
+        if (state is TransactionError) {
+          loadTransactions();
+        }
+      });
     }
   }
 
