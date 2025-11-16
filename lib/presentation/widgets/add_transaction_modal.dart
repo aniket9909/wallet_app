@@ -20,8 +20,10 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
   final _noteController = TextEditingController();
 
   TransactionType _transactionType = TransactionType.debit;
+  bool _isTransfer = false;
   String? _selectedCategory;
   String? _selectedAccount;
+  String? _selectedToAccount;
 
   @override
   void dispose() {
@@ -100,6 +102,9 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
                           Colors.red,
                         ),
                       ),
+                      Expanded(
+                        child: _buildTransferButton(),
+                      ),
                     ],
                   ),
                 ),
@@ -148,46 +153,48 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
                 ),
                 const SizedBox(height: 16),
 
-                // Category Dropdown
-                BlocBuilder<SettingsCubit, SettingsState>(
-                  builder: (context, state) {
-                    final categories = state is SettingsLoaded
-                        ? state.settings.expenseTypes
-                        : ['Food', 'Bills', 'Shopping', 'Travel'];
+                // Category Dropdown (hidden for transfer)
+                if (!_isTransfer)
+                  BlocBuilder<SettingsCubit, SettingsState>(
+                    builder: (context, state) {
+                      final categories = state is SettingsLoaded
+                          ? state.settings.expenseTypes
+                          : ['Food', 'Bills', 'Shopping', 'Travel'];
 
-                    return DropdownButtonFormField<String>(
-                      value: _selectedCategory,
-                      decoration: InputDecoration(
-                        labelText: 'Category',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                      return DropdownButtonFormField<String>(
+                        value: _selectedCategory,
+                        decoration: InputDecoration(
+                          labelText: 'Category',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
                         ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                      ),
-                    items: categories.map<DropdownMenuItem<String>>((category) {
-                      return DropdownMenuItem<String>(
-                        value: category,
-                        child: Text(category),
+                        items:
+                            categories.map<DropdownMenuItem<String>>((category) {
+                          return DropdownMenuItem<String>(
+                            value: category,
+                            child: Text(category),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedCategory = value;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null) {
+                            return 'Please select category';
+                          }
+                          return null;
+                        },
                       );
-                    }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedCategory = value;
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null) {
-                          return 'Please select category';
-                        }
-                        return null;
-                      },
-                    );
-                  },
-                ),
+                    },
+                  ),
                 const SizedBox(height: 16),
 
-                // Account Dropdown
+                // Account(s) Dropdown
                 BlocBuilder<AccountCubit, AccountState>(
                   builder: (context, state) {
                     final accounts = state is AccountLoaded ? state.accounts : [];
@@ -206,33 +213,70 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
                       );
                     }
 
-                    return DropdownButtonFormField<String>(
-                      value: _selectedAccount,
-                      decoration: InputDecoration(
-                        labelText: 'Account',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    final accountItems =
+                        accounts.map<DropdownMenuItem<String>>((account) {
+                      return DropdownMenuItem<String>(
+                        value: account.name,
+                        child: Text(account.name),
+                      );
+                    }).toList();
+
+                    return Column(
+                      children: [
+                        DropdownButtonFormField<String>(
+                          value: _selectedAccount,
+                          decoration: InputDecoration(
+                            labelText: _isTransfer ? 'From Account' : 'Account',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                          ),
+                          items: accountItems,
+                          onChanged: (String? value) {
+                            setState(() {
+                              _selectedAccount = value;
+                            });
+                          },
+                          validator: (value) {
+                            if (value == null) {
+                              return 'Please select account';
+                            }
+                            return null;
+                          },
                         ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                      ),
-                      items: accounts.map<DropdownMenuItem<String>>((account) {
-                        return DropdownMenuItem<String>(
-                          value: account.name,
-                          child: Text(account.name),
-                        );
-                      }).toList(),
-                      onChanged: (String? value) {
-                        setState(() {
-                          _selectedAccount = value;
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null) {
-                          return 'Please select account';
-                        }
-                        return null;
-                      },
+                        if (_isTransfer) ...[
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: _selectedToAccount,
+                            decoration: InputDecoration(
+                              labelText: 'To Account',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey[50],
+                            ),
+                            items: accountItems,
+                            onChanged: (String? value) {
+                              setState(() {
+                                _selectedToAccount = value;
+                              });
+                            },
+                            validator: (value) {
+                              if (!_isTransfer) return null;
+                              if (value == null) {
+                                return 'Please select destination account';
+                              }
+                              if (value == _selectedAccount) {
+                                return 'Accounts must be different';
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
+                      ],
                     );
                   },
                 ),
@@ -265,8 +309,8 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
                       ),
                       elevation: 0,
                     ),
-                    child: const Text(
-                      'Add Transaction',
+                    child: Text(
+                      _isTransfer ? 'Transfer' : 'Add Transaction',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -294,6 +338,7 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
       onTap: () {
         setState(() {
           _transactionType = type;
+          _isTransfer = false;
         });
       },
       child: Container(
@@ -333,31 +378,109 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
     );
   }
 
+  Widget _buildTransferButton() {
+    final isSelected = _isTransfer;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _isTransfer = true;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.swap_horiz,
+              color: isSelected ? Colors.blue : Colors.grey,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Transfer',
+              style: TextStyle(
+                color: isSelected ? Colors.blue : Colors.grey,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _submitTransaction() {
     if (_formKey.currentState!.validate()) {
-      final transaction = TransactionModelNew(
-        id: '', // Will be set by Firebase key
-        type: _transactionType,
-        amount: double.parse(_amountController.text),
-        description: _descriptionController.text,
-        category: _selectedCategory!,
-        account: _selectedAccount!,
-        date: DateTime.now(),
-        note: _noteController.text.isEmpty ? null : _noteController.text,
-      );
+      final amount = double.parse(_amountController.text);
+      final description = _descriptionController.text;
+      final note = _noteController.text.isEmpty ? null : _noteController.text;
 
       // Close modal first
       Navigator.pop(context);
 
-      // Add transaction (stream will update UI automatically)
-      context.read<TransactionCubit>().addTransaction(transaction);
+      if (_isTransfer) {
+        // Create two transactions: debit from source, credit to destination
+        final debitTx = TransactionModelNew(
+          id: '',
+          type: TransactionType.debit,
+          amount: amount,
+          description: description.isEmpty ? 'Transfer to $_selectedToAccount' : description,
+          category: 'Transfer',
+          account: _selectedAccount!,
+          date: DateTime.now(),
+          note: note,
+        );
+        final creditTx = TransactionModelNew(
+          id: '',
+          type: TransactionType.credit,
+          amount: amount,
+          description: description.isEmpty ? 'Transfer from $_selectedAccount' : description,
+          category: 'Transfer',
+          account: _selectedToAccount!,
+          date: DateTime.now(),
+          note: note,
+        );
+
+        final cubit = context.read<TransactionCubit>();
+        cubit.addTransaction(debitTx);
+        cubit.addTransaction(creditTx);
+      } else {
+        final transaction = TransactionModelNew(
+          id: '', // Will be set by Firebase key
+          type: _transactionType,
+          amount: amount,
+          description: description,
+          category: _selectedCategory!,
+          account: _selectedAccount!,
+          date: DateTime.now(),
+          note: note,
+        );
+        // Add transaction (stream will update UI automatically)
+        context.read<TransactionCubit>().addTransaction(transaction);
+      }
 
       // Show success message after a brief delay to ensure operation started
       Future.delayed(const Duration(milliseconds: 300), () {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Transaction added successfully!'),
+              content: Text(_isTransfer
+                  ? 'Transfer completed!'
+                  : 'Transaction added successfully!'),
               backgroundColor: Colors.green,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(

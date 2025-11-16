@@ -97,6 +97,10 @@ class FirebaseRealtimeService {
   }
 
   Future<void> _updateWalletBalance(TransactionModelNew transaction) async {
+    // Do not change wallet totals for transfers
+    if (transaction.category == 'Transfer') {
+      return;
+    }
     final snapshot = await _userRef.child('wallet').get();
     WalletDataModel wallet;
     

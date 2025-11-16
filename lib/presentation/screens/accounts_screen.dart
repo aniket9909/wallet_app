@@ -3,11 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import '../../logic/cubits/account_cubit.dart';
-import '../../logic/cubits/transaction_cubit.dart';
-import '../../logic/cubits/settings_cubit.dart';
 import '../../data/models/account_model.dart';
 import '../widgets/add_transaction_modal.dart';
 import '../widgets/add_account_modal.dart';
+import 'account_transactions_screen.dart';
 
 class AccountsScreen extends StatelessWidget {
   const AccountsScreen({super.key});
@@ -145,7 +144,11 @@ class AccountsScreen extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
           onTap: () {
-            // Navigate to account details
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => AccountTransactionsScreen(accountName: account.name),
+              ),
+            );
           },
           child: Padding(
             padding: const EdgeInsets.all(20),

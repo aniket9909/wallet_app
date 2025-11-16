@@ -126,7 +126,7 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
             ).animate().fadeIn(duration: 800.ms, delay: 1000.ms),
           ],
         ),
-      ),
+      ),              
     );
   }
 }
