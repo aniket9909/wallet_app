@@ -62,6 +62,7 @@ dependencies:
   # Utils
   intl: ^0.19.0
   uuid: ^4.5.1
+  permission_handler: ^11.3.0
   
   # Icons
   font_awesome_flutter: ^10.8.0

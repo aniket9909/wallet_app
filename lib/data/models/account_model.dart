@@ -7,6 +7,7 @@ class AccountModel extends Equatable {
   final String type; // Bank, Cash, UPI, Credit Card
   final String? icon;
   final String? color;
+  final String? lastDigits; // last 4 or 6 digits
 
   const AccountModel({
     required this.id,
@@ -15,6 +16,7 @@ class AccountModel extends Equatable {
     required this.type,
     this.icon,
     this.color,
+    this.lastDigits,
   });
 
   factory AccountModel.fromJson(String id, Map<dynamic, dynamic> json) {
@@ -25,6 +27,7 @@ class AccountModel extends Equatable {
       type: json['type'] ?? 'Cash',
       icon: json['icon'],
       color: json['color'],
+      lastDigits: json['last_digits'],
     );
   }
 
@@ -35,6 +38,7 @@ class AccountModel extends Equatable {
       'type': type,
       'icon': icon,
       'color': color,
+      'last_digits': lastDigits,
     };
   }
 
@@ -45,6 +49,7 @@ class AccountModel extends Equatable {
     String? type,
     String? icon,
     String? color,
+    String? lastDigits,
   }) {
     return AccountModel(
       id: id ?? this.id,
@@ -53,10 +58,11 @@ class AccountModel extends Equatable {
       type: type ?? this.type,
       icon: icon ?? this.icon,
       color: color ?? this.color,
+      lastDigits: lastDigits ?? this.lastDigits,
     );
   }
 
   @override
-  List<Object?> get props => [id, name, balance, type, icon, color];
+  List<Object?> get props => [id, name, balance, type, icon, color, lastDigits];
 }
 

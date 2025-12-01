@@ -3,12 +3,105 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../logic/cubits/settings_cubit.dart';
+import '../../logic/cubits/account_cubit.dart';
+import '../../logic/cubits/transaction_cubit.dart';
+import '../../logic/cubits/partial_transaction_cubit.dart';
 import '../../data/models/settings_model.dart';
+import '../../data/models/partial_transaction_model.dart';
+import '../../data/models/transaction_model_new.dart';
 import '../widgets/settings_section.dart';
 import '../../routes/app_routes.dart';
+import 'account_last_digits_screen.dart';
+import 'package:intl/intl.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+  void _testSmsFunctionality() {
+    final accountState = context.read<AccountCubit>().state;
+    if (accountState is! AccountLoaded || accountState.accounts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please add at least one account first'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Create dummy static SMS transaction
+    final firstAccount = accountState.accounts.first;
+    final dummySms = PartialTransaction(
+      id: 'test-${DateTime.now().millisecondsSinceEpoch}',
+      accountName: firstAccount.name,
+      amount: 1500.0,
+      type: TransactionType.debit,
+      description: 'SMS debit ${firstAccount.lastDigits ?? "XXXX"}',
+      date: DateTime.now(),
+      smsBody: 'Your A/c ${firstAccount.lastDigits ?? "XXXX"} debited by INR 1,500.00 on ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}. Avl Bal: INR 25,000.00',
+      matchedDigits: firstAccount.lastDigits ?? 'XXXX',
+    );
+
+    _showSmsReviewSheet([dummySms]);
+  }
+
+  void _showSmsReviewSheet(List<PartialTransaction> partials) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _SmsReviewSheet(
+        partials: partials,
+        onAccept: (p) {
+          final transaction = TransactionModelNew(
+            id: '',
+            type: p.type,
+            amount: p.amount,
+            description: p.description,
+            category: 'SMS Import',
+            account: p.accountName,
+            date: p.date,
+            note: p.smsBody,
+          );
+          context.read<TransactionCubit>().addTransaction(transaction);
+          Navigator.pop(ctx);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Transaction saved successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        },
+        onReject: (p) {
+          Navigator.pop(ctx);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Transaction rejected'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,43 +118,74 @@ class SettingsScreen extends StatelessWidget {
           ),
         ),
         child: SafeArea(
-          child: BlocBuilder<SettingsCubit, SettingsState>(
-            builder: (context, state) {
-              if (state is SettingsLoading) {
-                return const Center(child: CircularProgressIndicator());
-              }
+          child: Column(
+            children: [
+              // Header with Tabs
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Text(
+                      'Settings',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              TabBar(
+                controller: _tabController,
+                tabs: const [
+                  Tab(text: 'Settings', icon: Icon(Icons.settings)),
+                  Tab(text: 'Partial Transactions', icon: Icon(Icons.receipt_long)),
+                ],
+              ),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildSettingsTab(context),
+                    _buildPartialTransactionsTab(context),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-              if (state is SettingsError) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
-                      const SizedBox(height: 16),
-                      const Text('Error loading settings'),
-                      const SizedBox(height: 8),
-                      Text(state.message),
-                    ],
-                  ),
-                );
-              }
+  Widget _buildSettingsTab(BuildContext context) {
+    return BlocBuilder<SettingsCubit, SettingsState>(
+      builder: (context, state) {
+        if (state is SettingsLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-              if (state is SettingsLoaded) {
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header
-                      Text(
-                        'Settings',
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ).animate().fadeIn(duration: 400.ms),
-                      const SizedBox(height: 24),
+        if (state is SettingsError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                const SizedBox(height: 16),
+                const Text('Error loading settings'),
+                const SizedBox(height: 8),
+                Text(state.message),
+              ],
+            ),
+          );
+        }
 
-                      // Profile Section
+        if (state is SettingsLoaded) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Profile Section
                       _buildProfileCard(context, state.settings.profile)
                           .animate()
                           .fadeIn(duration: 600.ms)
@@ -105,19 +229,21 @@ class SettingsScreen extends StatelessWidget {
                       ).animate(delay: 200.ms).fadeIn(duration: 600.ms),
                       const SizedBox(height: 16),
 
-                      // Financial Details
+                      // Financial Details (modernized)
                       SettingsSection(
                         title: 'Financial Details',
                         items: [
                           SettingsTile(
-                            icon: Icons.account_balance,
-                            title: 'Bank Details',
-                            subtitle: state.settings.bankDetails != null
-                                ? 'Account added'
-                                : 'Not added',
+                            icon: Icons.tag,
+                            title: 'Account Last Digits',
+                            subtitle: 'Store last 4/6 digits for accounts',
                             trailing: const Icon(Icons.chevron_right),
                             onTap: () {
-                              _showBankDetailsDialog(context, state.settings);
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const AccountLastDigitsScreen(),
+                                ),
+                              );
                             },
                           ),
                           SettingsTile(
@@ -152,6 +278,21 @@ class SettingsScreen extends StatelessWidget {
                       ).animate(delay: 600.ms).fadeIn(duration: 600.ms),
                       const SizedBox(height: 16),
 
+                      // Testing Section
+                      SettingsSection(
+                        title: 'Testing',
+                        items: [
+                          SettingsTile(
+                            icon: Icons.bug_report_outlined,
+                            title: 'Test SMS Functionality',
+                            subtitle: 'Test SMS transaction detection',
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: _testSmsFunctionality,
+                          ),
+                        ],
+                      ).animate(delay: 800.ms).fadeIn(duration: 600.ms),
+                      const SizedBox(height: 16),
+
                       // About
                       SettingsSection(
                         title: 'About',
@@ -183,16 +324,254 @@ class SettingsScreen extends StatelessWidget {
                       _buildLogoutButton(context)
                           .animate(delay: 1000.ms)
                           .fadeIn(duration: 600.ms),
-                      const SizedBox(height: 80),
-                    ],
-                  ),
-                );
-              }
+                const SizedBox(height: 80),
+              ],
+            ),
+          );
+        }
 
-              return const SizedBox();
-            },
-          ),
+        return const SizedBox();
+      },
+    );
+  }
+
+  Widget _buildPartialTransactionsTab(BuildContext context) {
+    return BlocBuilder<PartialTransactionCubit, PartialTransactionState>(
+      builder: (context, state) {
+        if (state is PartialTransactionLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (state is PartialTransactionError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                const SizedBox(height: 16),
+                Text('Error: ${state.message}'),
+              ],
+            ),
+          );
+        }
+
+        if (state is PartialTransactionLoaded) {
+          return Column(
+            children: [
+              // Add Button
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Partial Transactions',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () => _showAddPartialDialog(context),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add'),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: state.partials.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.receipt_long_outlined,
+                                size: 64, color: Colors.grey[400]),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No partial transactions',
+                              style: TextStyle(color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: () async {
+                          context.read<PartialTransactionCubit>().loadPartialTransactions();
+                        },
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: state.partials.length,
+                          itemBuilder: (context, index) {
+                            final partial = state.partials[index];
+                            return _PartialTransactionCard(partial: partial)
+                                .animate()
+                                .fadeIn(duration: 300.ms, delay: (index * 50).ms)
+                                .slideX(begin: 0.1, end: 0);
+                          },
+                        ),
+                      ),
+              ),
+            ],
+          );
+        }
+
+        return const SizedBox();
+      },
+    );
+  }
+
+  void _showAddPartialDialog(BuildContext context) {
+    final accountState = context.read<AccountCubit>().state;
+    if (accountState is! AccountLoaded || accountState.accounts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please add at least one account first'),
+          backgroundColor: Colors.orange,
         ),
+      );
+      return;
+    }
+
+    final amountController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final smsBodyController = TextEditingController();
+    final digitsController = TextEditingController();
+    TransactionType selectedType = TransactionType.debit;
+    String? selectedAccount;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Add Partial Transaction'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(labelText: 'Account'),
+                    items: accountState.accounts.map((acc) {
+                      return DropdownMenuItem(
+                        value: acc.name,
+                        child: Text(acc.name),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedAccount = value;
+                        final acc = accountState.accounts
+                            .firstWhere((a) => a.name == value);
+                        digitsController.text = acc.lastDigits ?? '';
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: amountController,
+                    decoration: const InputDecoration(
+                      labelText: 'Amount',
+                      prefixText: '₹',
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<TransactionType>(
+                    decoration: const InputDecoration(labelText: 'Type'),
+                    value: selectedType,
+                    items: [
+                      DropdownMenuItem(
+                        value: TransactionType.credit,
+                        child: const Text('Credit'),
+                      ),
+                      DropdownMenuItem(
+                        value: TransactionType.debit,
+                        child: const Text('Debit'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        selectedType = value!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(labelText: 'Description'),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: digitsController,
+                    decoration: const InputDecoration(labelText: 'Last Digits'),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: smsBodyController,
+                    decoration: const InputDecoration(labelText: 'SMS Body'),
+                    maxLines: 3,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  if (selectedAccount == null ||
+                      amountController.text.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please fill all required fields'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  final amount = double.tryParse(amountController.text);
+                  if (amount == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Invalid amount'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  final partial = PartialTransaction(
+                    id: '',
+                    accountName: selectedAccount!,
+                    amount: amount,
+                    type: selectedType,
+                    description: descriptionController.text.isEmpty
+                        ? 'SMS ${selectedType == TransactionType.credit ? 'credit' : 'debit'} ${digitsController.text}'
+                        : descriptionController.text,
+                    date: DateTime.now(),
+                    smsBody: smsBodyController.text.isEmpty
+                        ? 'Test SMS transaction'
+                        : smsBodyController.text,
+                    matchedDigits: digitsController.text,
+                  );
+
+                  context.read<PartialTransactionCubit>().addPartialTransaction(partial);
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Partial transaction added'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                },
+                child: const Text('Add'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -343,63 +722,7 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  void _showBankDetailsDialog(BuildContext context, SettingsModel settings) {
-    final nameController = TextEditingController(
-      text: settings.bankDetails?.bankName ?? '',
-    );
-    final accountController = TextEditingController(
-      text: settings.bankDetails?.accountNumber ?? '',
-    );
-    final ifscController = TextEditingController(
-      text: settings.bankDetails?.ifsc ?? '',
-    );
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Bank Details'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'Bank Name'),
-              ),
-              TextField(
-                controller: accountController,
-                decoration: const InputDecoration(labelText: 'Account Number'),
-              ),
-              TextField(
-                controller: ifscController,
-                decoration: const InputDecoration(labelText: 'IFSC Code'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              final updatedSettings = settings.copyWith(
-                bankDetails: BankDetails(
-                  bankName: nameController.text,
-                  accountNumber: accountController.text,
-                  ifsc: ifscController.text,
-                ),
-              );
-              context.read<SettingsCubit>().updateSettings(updatedSettings);
-              Navigator.pop(dialogContext);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Bank details dialog removed as per latest settings requirements
 
   void _showCardDetailsDialog(BuildContext context, SettingsModel settings) {
     final cardNumberController = TextEditingController(
@@ -534,6 +857,528 @@ class SettingsScreen extends StatelessWidget {
             child: const Text('Add'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// Partial Transaction Card Widget
+class _PartialTransactionCard extends StatelessWidget {
+  final PartialTransaction partial;
+
+  const _PartialTransactionCard({required this.partial});
+
+  @override
+  Widget build(BuildContext context) {
+    final isCredit = partial.type == TransactionType.credit;
+    final color = isCredit ? Colors.green : Colors.red;
+    final dateFormat = DateFormat('MMM dd, yyyy hh:mm a');
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _showEditDialog(context, partial),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: color.withOpacity(0.12),
+                    child: Icon(
+                      isCredit ? Icons.arrow_downward : Icons.arrow_upward,
+                      color: color,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          partial.accountName,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          dateFormat.format(partial.date),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${isCredit ? '+' : '-'}₹${partial.amount.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (!partial.seen)
+                        Container(
+                          margin: const EdgeInsets.only(top: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'New',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                partial.description,
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  partial.smsBody,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[700],
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () => _showDeleteConfirmation(context, partial),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () => _acceptTransaction(context, partial),
+                    icon: const Icon(Icons.check, size: 18),
+                    label: const Text('Accept'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showEditDialog(BuildContext context, PartialTransaction partial) {
+    final accountState = context.read<AccountCubit>().state;
+    if (accountState is! AccountLoaded) return;
+
+    final amountController = TextEditingController(text: partial.amount.toString());
+    final descriptionController = TextEditingController(text: partial.description);
+    final smsBodyController = TextEditingController(text: partial.smsBody);
+    final digitsController = TextEditingController(text: partial.matchedDigits);
+    TransactionType selectedType = partial.type;
+    String? selectedAccount = partial.accountName;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Edit Partial Transaction'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(labelText: 'Account'),
+                    value: selectedAccount,
+                    items: accountState.accounts.map((acc) {
+                      return DropdownMenuItem(
+                        value: acc.name,
+                        child: Text(acc.name),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedAccount = value;
+                        final acc = accountState.accounts
+                            .firstWhere((a) => a.name == value);
+                        digitsController.text = acc.lastDigits ?? '';
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: amountController,
+                    decoration: const InputDecoration(
+                      labelText: 'Amount',
+                      prefixText: '₹',
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<TransactionType>(
+                    decoration: const InputDecoration(labelText: 'Type'),
+                    value: selectedType,
+                    items: [
+                      DropdownMenuItem(
+                        value: TransactionType.credit,
+                        child: const Text('Credit'),
+                      ),
+                      DropdownMenuItem(
+                        value: TransactionType.debit,
+                        child: const Text('Debit'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        selectedType = value!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(labelText: 'Description'),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: digitsController,
+                    decoration: const InputDecoration(labelText: 'Last Digits'),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: smsBodyController,
+                    decoration: const InputDecoration(labelText: 'SMS Body'),
+                    maxLines: 3,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  final amount = double.tryParse(amountController.text);
+                  if (amount == null || selectedAccount == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Invalid input'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  final updated = partial.copyWith(
+                    accountName: selectedAccount,
+                    amount: amount,
+                    type: selectedType,
+                    description: descriptionController.text,
+                    smsBody: smsBodyController.text,
+                    matchedDigits: digitsController.text,
+                  );
+
+                  context.read<PartialTransactionCubit>().updatePartialTransaction(updated);
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Partial transaction updated'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context, PartialTransaction partial) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Partial Transaction'),
+        content: const Text('Are you sure you want to delete this partial transaction?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              context.read<PartialTransactionCubit>().deletePartialTransaction(partial.id);
+              Navigator.pop(dialogContext);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Partial transaction deleted'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _acceptTransaction(BuildContext context, PartialTransaction partial) {
+    final transaction = TransactionModelNew(
+      id: '',
+      type: partial.type,
+      amount: partial.amount,
+      description: partial.description,
+      category: 'SMS Import',
+      account: partial.accountName,
+      date: partial.date,
+      note: partial.smsBody,
+    );
+    context.read<TransactionCubit>().addTransaction(transaction);
+    context.read<PartialTransactionCubit>().markAsSeen(partial.id);
+    context.read<PartialTransactionCubit>().deletePartialTransaction(partial.id);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Transaction saved successfully!'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+}
+
+// SMS Review Sheet Widget
+class _SmsReviewSheet extends StatefulWidget {
+  final List<PartialTransaction> partials;
+  final Function(PartialTransaction) onAccept;
+  final Function(PartialTransaction) onReject;
+
+  const _SmsReviewSheet({
+    required this.partials,
+    required this.onAccept,
+    required this.onReject,
+  });
+
+  @override
+  State<_SmsReviewSheet> createState() => _SmsReviewSheetState();
+}
+
+class _SmsReviewSheetState extends State<_SmsReviewSheet> {
+  late List<PartialTransaction> _pending;
+
+  @override
+  void initState() {
+    super.initState();
+    _pending = List.from(widget.partials);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.5,
+      minChildSize: 0.35,
+      maxChildSize: 0.9,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 16,
+                offset: const Offset(0, -6),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[400],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Test SMS Transaction',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      '${_pending.length}',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: _pending.isEmpty
+                    ? const Center(
+                        child: Text('No pending SMS transactions'),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        itemCount: _pending.length,
+                        itemBuilder: (context, index) {
+                          final p = _pending[index];
+                          return _SmsPartialTile(
+                            partial: p,
+                            onAccept: () {
+                              widget.onAccept(p);
+                              setState(() {
+                                _pending.removeWhere((e) => e.id == p.id);
+                              });
+                            },
+                            onReject: () {
+                              widget.onReject(p);
+                              setState(() {
+                                _pending.removeWhere((e) => e.id == p.id);
+                              });
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SmsPartialTile extends StatelessWidget {
+  final PartialTransaction partial;
+  final VoidCallback onAccept;
+  final VoidCallback onReject;
+
+  const _SmsPartialTile({
+    required this.partial,
+    required this.onAccept,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isCredit = partial.type == TransactionType.credit;
+    final color = isCredit ? Colors.green : Colors.red;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: color.withOpacity(0.12),
+                  child: Icon(
+                    isCredit ? Icons.arrow_downward : Icons.arrow_upward,
+                    color: color,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    partial.accountName,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${isCredit ? '+' : '-'}₹${partial.amount.toStringAsFixed(0)}',
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              partial.smsBody,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: Colors.grey[700], fontSize: 12),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: onReject,
+                  child: const Text('Incorrect'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: onAccept,
+                  child: const Text('Correct'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

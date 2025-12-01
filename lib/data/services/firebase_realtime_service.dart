@@ -7,6 +7,7 @@ import '../models/savings_goal_model.dart';
 import '../models/settings_model.dart';
 import '../models/debt_model.dart';
 import '../models/investment_model.dart';
+import '../models/partial_transaction_model.dart';
 
 class FirebaseRealtimeService {
   final FirebaseDatabase _database;
@@ -281,6 +282,42 @@ class FirebaseRealtimeService {
         ).toJson(),
       });
     }
+  }
+
+  // ============ PARTIAL TRANSACTIONS ============
+  Stream<List<PartialTransaction>> watchPartialTransactions() {
+    return _userRef.child('partialTransactions').onValue.map((event) {
+      if (event.snapshot.value == null) return [];
+      final data = event.snapshot.value as Map<dynamic, dynamic>;
+      final partials = data.entries
+          .map((e) => PartialTransaction.fromJson(e.key, e.value))
+          .toList();
+      // Sort by date descending
+      partials.sort((a, b) => b.date.compareTo(a.date));
+      return partials;
+    });
+  }
+
+  Future<String> addPartialTransaction(PartialTransaction partial) async {
+    final ref = _userRef.child('partialTransactions').push();
+    await ref.set(partial.toJson());
+    return ref.key!;
+  }
+
+  Future<void> updatePartialTransaction(PartialTransaction partial) async {
+    await _userRef
+        .child('partialTransactions/${partial.id}')
+        .update(partial.toJson());
+  }
+
+  Future<void> deletePartialTransaction(String partialId) async {
+    await _userRef.child('partialTransactions/$partialId').remove();
+  }
+
+  Future<void> markPartialTransactionAsSeen(String partialId) async {
+    await _userRef
+        .child('partialTransactions/$partialId/seen')
+        .set(true);
   }
 }
 
