@@ -26,6 +26,7 @@ class SmsTransactionService {
   Future<List<PartialTransaction>> readPartialTransactionsFromSms(
     List<AccountModel> accounts,
   ) async {
+    print('readPartialTransactionsFromSms called');
     if (!Platform.isAndroid) return [];
     
     final hasPerm = await _ensurePermissions();
