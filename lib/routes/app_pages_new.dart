@@ -5,6 +5,7 @@ import '../features/auth/register_page.dart';
 import '../features/auth/forgot_password_page.dart';
 import '../presentation/screens/main_navigation_screen.dart';
 import '../presentation/screens/partial_transactions_screen.dart';
+import '../presentation/screens/sms_messages_screen.dart';
 import 'app_routes.dart';
 
 class AppPagesNew {
@@ -16,6 +17,7 @@ class AppPagesNew {
       AppRoutes.forgotPassword: (context) => const ForgotPasswordPage(),
       AppRoutes.home: (context) => const MainNavigationScreen(),
       AppRoutes.partialTransactions: (context) => const PartialTransactionsScreen(),
+      AppRoutes.smsMessages: (context) => const SmsMessagesScreen(),
     };
   }
 }

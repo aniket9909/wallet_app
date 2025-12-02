@@ -20,6 +20,9 @@ import 'data/repositories/settings_repository.dart';
 import 'data/repositories/debt_repository.dart';
 import 'data/repositories/investment_repository.dart';
 import 'data/repositories/partial_transaction_repository.dart';
+import 'data/repositories/sms_repository.dart';
+import 'data/models/sms_message_model.dart';
+import 'core/utils/sms_detection_util.dart';
 
 // Logic Layer
 import 'logic/cubits/wallet_cubit.dart';
@@ -30,6 +33,7 @@ import 'logic/cubits/settings_cubit.dart';
 import 'logic/cubits/debt_cubit.dart';
 import 'logic/cubits/investment_cubit.dart';
 import 'logic/cubits/partial_transaction_cubit.dart';
+import 'logic/cubits/sms_cubit.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,6 +60,7 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _requestSmsPermissionsAndStartListener();
+    _syncLocalSmsToFirebase();
   }
 
   Future<void> _requestSmsPermissionsAndStartListener() async {
@@ -107,13 +112,65 @@ class _MyAppState extends State<MyApp> {
     print('========== STARTING SMS LISTENER ==========');
     print('SmsListenerService instance: available');
     
-    _smsListenerService.startListening((body, address, date) {
-      // Show popup when SMS is received
+    _smsListenerService.startListening((body, address, date) async {
+      // Check if SMS is credit/debit and store only if it is
       print('========== SMS CALLBACK TRIGGERED ==========');
       print('SMS received in main.dart callback:');
       print('  Body: $body');
       print('  Address: $address');
       print('  Date: $date');
+      
+      // Detect if SMS is credit/debit
+      final detection = SmsDetectionUtil.detectCreditDebit(body);
+      
+      if (detection == null) {
+        print('SMS is not a credit/debit transaction, skipping storage');
+        return; // Don't store non-transaction SMS
+      }
+      
+      print('SMS detected as ${detection.transactionType} transaction');
+      print('Amount: ${detection.amount}');
+      
+      // Store SMS in database (only credit/debit SMS)
+      try {
+        final smsModel = SmsMessageModel(
+          body: body,
+          address: address,
+          date: date,
+          isRead: false,
+          status: SmsStatus.pending,
+          isCreditDebit: true,
+          amount: detection.amount,
+          transactionType: detection.transactionType,
+        );
+        print('Storing credit/debit SMS in database...');
+        final appContext = navigatorKey.currentContext;
+        if (appContext != null) {
+          final smsRepo = appContext.read<SmsRepository>();
+          await smsRepo.saveSms(smsModel);
+          print('SMS stored successfully in database');
+          
+          // Sync to Firebase
+          try {
+            await smsRepo.syncToFirebase(smsModel);
+            print('SMS synced to Firebase');
+          } catch (e) {
+            print('Error syncing SMS to Firebase: $e');
+          }
+          
+          // Update SMS cubit if available
+          try {
+            final smsCubit = appContext.read<SmsCubit>();
+            smsCubit.loadAllSms();
+            print('SMS cubit updated');
+          } catch (e) {
+            print('Could not update SMS cubit (may not be initialized yet): $e');
+          }
+        }
+      } catch (e) {
+        print('ERROR storing SMS in database: $e');
+      }
+      
       print('Showing SMS popup...');
       _showSmsPopup(body, address, date);
       print('===========================================');
@@ -291,6 +348,29 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  Future<void> _syncLocalSmsToFirebase() async {
+    print('========== SYNCING LOCAL SMS TO FIREBASE ==========');
+    // Wait for widget tree to be ready
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final context = navigatorKey.currentContext;
+        if (context != null) {
+          final smsRepo = context.read<SmsRepository>();
+          final allSms = await smsRepo.getAllSms();
+          print('Found ${allSms.length} local SMS messages to sync');
+          
+          if (allSms.isNotEmpty) {
+            await smsRepo.syncAllToFirebase(allSms);
+            print('All SMS messages synced to Firebase');
+          }
+        }
+      } catch (e) {
+        print('Error syncing local SMS to Firebase: $e');
+      }
+      print('==================================================');
+    });
+  }
+
   @override
   void dispose() {
     _smsListenerService.dispose();
@@ -344,6 +424,11 @@ class _MyAppState extends State<MyApp> {
             context.read<FirebaseRealtimeService>(),
           ),
         ),
+        RepositoryProvider<SmsRepository>(
+          create: (context) => SmsRepository(
+            firebaseService: context.read<FirebaseRealtimeService>(),
+          ),
+        ),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -386,6 +471,11 @@ class _MyAppState extends State<MyApp> {
             create: (context) => PartialTransactionCubit(
               context.read<PartialTransactionRepository>(),
             )..loadPartialTransactions(),
+          ),
+          BlocProvider<SmsCubit>(
+            create: (context) => SmsCubit(
+              context.read<SmsRepository>(),
+            )..loadAllSms(),
           ),
         ],
         child: BlocBuilder<SettingsCubit, SettingsState>(

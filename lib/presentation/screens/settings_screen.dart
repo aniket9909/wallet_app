@@ -1,3 +1,4 @@
+import 'package:ewallet/presentation/screens/sms_messages_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -36,31 +37,32 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
     super.dispose();
   }
   void _testSmsFunctionality() {
-    final accountState = context.read<AccountCubit>().state;
-    if (accountState is! AccountLoaded || accountState.accounts.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please add at least one account first'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
+    Navigator.push(context, MaterialPageRoute(builder: (context) => SmsMessagesScreen()));
+    // final accountState = context.read<AccountCubit>().state;
+    // if (accountState is! AccountLoaded || accountState.accounts.isEmpty) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     const SnackBar(
+    //       content: Text('Please add at least one account first'),
+    //       backgroundColor: Colors.orange,
+    //     ),
+    //   );
+    //   return;
+    // }
 
     // Create dummy static SMS transaction
-    final firstAccount = accountState.accounts.first;
-    final dummySms = PartialTransaction(
-      id: 'test-${DateTime.now().millisecondsSinceEpoch}',
-      accountName: firstAccount.name,
-      amount: 1500.0,
-      type: TransactionType.debit,
-      description: 'SMS debit ${firstAccount.lastDigits ?? "XXXX"}',
-      date: DateTime.now(),
-      smsBody: 'Your A/c ${firstAccount.lastDigits ?? "XXXX"} debited by INR 1,500.00 on ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}. Avl Bal: INR 25,000.00',
-      matchedDigits: firstAccount.lastDigits ?? 'XXXX',
-    );
+    // final firstAccount = accountState.accounts.first;
+    // final dummySms = PartialTransaction(
+    //   id: 'test-${DateTime.now().millisecondsSinceEpoch}',
+    //   accountName: firstAccount.name,
+    //   amount: 1500.0,
+    //   type: TransactionType.debit,
+    //   description: 'SMS debit ${firstAccount.lastDigits ?? "XXXX"}',
+    //   date: DateTime.now(),
+    //   smsBody: 'Your A/c ${firstAccount.lastDigits ?? "XXXX"} debited by INR 1,500.00 on ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}. Avl Bal: INR 25,000.00',
+    //   matchedDigits: firstAccount.lastDigits ?? 'XXXX',
+    // );
 
-    _showSmsReviewSheet([dummySms]);
+    // _showSmsReviewSheet([dummySms]);
   }
 
   void _showSmsReviewSheet(List<PartialTransaction> partials) {
@@ -280,14 +282,16 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
 
                       // Testing Section
                       SettingsSection(
-                        title: 'Testing',
+                        title: 'Partial Transactions & SMS Messages',
                         items: [
                           SettingsTile(
                             icon: Icons.bug_report_outlined,
-                            title: 'Test SMS Functionality',
-                            subtitle: 'Test SMS transaction detection',
+                            title: 'SMS Messages',
+                            subtitle: 'View all SMS messages',
                             trailing: const Icon(Icons.chevron_right),
-                            onTap: _testSmsFunctionality,
+                            onTap: () {
+                              Navigator.push(context, MaterialPageRoute(builder: (context) => SmsMessagesScreen()));
+                            },
                           ),
                         ],
                       ).animate(delay: 800.ms).fadeIn(duration: 600.ms),

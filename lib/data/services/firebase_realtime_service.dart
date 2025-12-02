@@ -8,6 +8,7 @@ import '../models/settings_model.dart';
 import '../models/debt_model.dart';
 import '../models/investment_model.dart';
 import '../models/partial_transaction_model.dart';
+import '../models/sms_message_model.dart';
 
 class FirebaseRealtimeService {
   final FirebaseDatabase _database;
@@ -318,6 +319,52 @@ class FirebaseRealtimeService {
     await _userRef
         .child('partialTransactions/$partialId/seen')
         .set(true);
+  }
+
+  // ============ SMS MESSAGES ============
+  Stream<List<SmsMessageModel>> watchSmsMessages() {
+    return _userRef.child('smsMessages').onValue.map((event) {
+      if (event.snapshot.value == null) return [];
+      final data = event.snapshot.value as Map<dynamic, dynamic>;
+      final smsList = data.entries
+          .map((e) => SmsMessageModel.fromJson(e.key, e.value))
+          .toList();
+      // Sort by date descending
+      smsList.sort((a, b) => b.date.compareTo(a.date));
+      return smsList;
+    });
+  }
+
+  Future<String> addSmsMessage(SmsMessageModel sms) async {
+    final ref = _userRef.child('smsMessages').push();
+    await ref.set(sms.toJson());
+    return ref.key!;
+  }
+
+  Future<void> updateSmsMessage(SmsMessageModel sms) async {
+    if (sms.id == null) return;
+    await _userRef
+        .child('smsMessages/${sms.id}')
+        .update(sms.toJson());
+  }
+
+  Future<void> deleteSmsMessage(String smsId) async {
+    await _userRef.child('smsMessages/$smsId').remove();
+  }
+
+  Future<void> syncSmsMessages(List<SmsMessageModel> smsList) async {
+    // Sync all local SMS to Firebase
+    for (final sms in smsList) {
+      if (sms.id != null) {
+        // Use local ID as Firebase key for consistency
+        await _userRef
+            .child('smsMessages/${sms.id}')
+            .set(sms.toJson());
+      } else {
+        // If no ID, push new entry
+        await _userRef.child('smsMessages').push().set(sms.toJson());
+      }
+    }
   }
 }
 
