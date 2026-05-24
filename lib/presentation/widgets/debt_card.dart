@@ -74,6 +74,15 @@ class DebtCard extends StatelessWidget {
                               color: Colors.grey[600],
                             ),
                           ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Tap for full history',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
                         ],
                       ),
                     ),

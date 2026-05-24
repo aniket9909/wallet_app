@@ -50,9 +50,12 @@ class AuthRepository {
   // Login with Google
   Future<UserCredential> continueWithGoogle() async {
     // Trigger the authentication flow
+    
     final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+    print(googleUser);
 
     if (googleUser == null) {
+      print('Google sign-in was cancelled');
       throw Exception('Google sign-in was cancelled');
     }
 

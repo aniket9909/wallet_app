@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "1064861195222-jhkpf5m06g4klhbie614isgau1gis4hm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aniket.ewallet",
+            "certificate_hash": "5033270dc527458a1f4069b7af76f1bdc16cd30d"
+          }
+        },
+        {
           "client_id": "1064861195222-00gnf09te2pcu4catredaoih4q7t1s5r.apps.googleusercontent.com",
           "client_type": 3
         }

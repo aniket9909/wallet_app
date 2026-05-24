@@ -6,7 +6,12 @@ import '../../logic/cubits/debt_cubit.dart';
 import '../../data/models/debt_model.dart';
 
 class AddDebtModal extends StatefulWidget {
-  const AddDebtModal({super.key});
+  final List<String> savedPersonNames;
+
+  const AddDebtModal({
+    super.key,
+    this.savedPersonNames = const [],
+  });
 
   @override
   State<AddDebtModal> createState() => _AddDebtModalState();
@@ -18,9 +23,25 @@ class _AddDebtModalState extends State<AddDebtModal> {
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _noteController = TextEditingController();
+  final _personFocusNode = FocusNode();
 
   DebtType _debtType = DebtType.borrow;
   DateTime? _dueDate;
+  bool _showNameSuggestions = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _personFocusNode.addListener(() {
+      setState(() {
+        _showNameSuggestions =
+            _personFocusNode.hasFocus && widget.savedPersonNames.isNotEmpty;
+      });
+    });
+    _personNameController.addListener(() {
+      if (_showNameSuggestions) setState(() {});
+    });
+  }
 
   @override
   void dispose() {
@@ -28,7 +49,16 @@ class _AddDebtModalState extends State<AddDebtModal> {
     _amountController.dispose();
     _descriptionController.dispose();
     _noteController.dispose();
+    _personFocusNode.dispose();
     super.dispose();
+  }
+
+  List<String> get _filteredNames {
+    final query = _personNameController.text.trim().toLowerCase();
+    if (query.isEmpty) return widget.savedPersonNames;
+    return widget.savedPersonNames
+        .where((name) => name.toLowerCase().contains(query))
+        .toList();
   }
 
   @override
@@ -53,7 +83,6 @@ class _AddDebtModalState extends State<AddDebtModal> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Handle bar
                 Center(
                   child: Container(
                     width: 40,
@@ -65,8 +94,6 @@ class _AddDebtModalState extends State<AddDebtModal> {
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // Title
                 Row(
                   children: [
                     Container(
@@ -96,8 +123,6 @@ class _AddDebtModalState extends State<AddDebtModal> {
                   ],
                 ),
                 const SizedBox(height: 24),
-
-                // Debt Type Toggle
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
@@ -126,30 +151,110 @@ class _AddDebtModalState extends State<AddDebtModal> {
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // Person Name
                 TextFormField(
                   controller: _personNameController,
-                  decoration: const InputDecoration(
+                  focusNode: _personFocusNode,
+                  decoration: InputDecoration(
                     labelText: 'Person Name',
                     hintText: 'e.g., John Doe',
-                    prefixIcon: Icon(Icons.person_outline),
-                    border: OutlineInputBorder(
+                    prefixIcon: const Icon(Icons.person_outline),
+                    suffixIcon: widget.savedPersonNames.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(
+                              _showNameSuggestions
+                                  ? Icons.expand_less
+                                  : Icons.history,
+                            ),
+                            tooltip: 'Saved names',
+                            onPressed: () {
+                              setState(() {
+                                _showNameSuggestions = !_showNameSuggestions;
+                                if (_showNameSuggestions) {
+                                  _personFocusNode.requestFocus();
+                                }
+                              });
+                            },
+                          )
+                        : null,
+                    border: const OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(12)),
                     ),
                     filled: true,
-                    fillColor: Color(0xFFF5F5F5),
+                    fillColor: const Color(0xFFF5F5F5),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
+                    if (value == null || value.trim().isEmpty) {
                       return 'Please enter person name';
                     }
                     return null;
                   },
+                  onTap: () {
+                    if (widget.savedPersonNames.isNotEmpty) {
+                      setState(() => _showNameSuggestions = true);
+                    }
+                  },
                 ),
+                if (_showNameSuggestions && _filteredNames.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 160),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                          child: Text(
+                            'Saved names',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ),
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _filteredNames.length,
+                          itemBuilder: (context, index) {
+                            final name = _filteredNames[index];
+                            return ListTile(
+                              dense: true,
+                              leading: CircleAvatar(
+                                radius: 16,
+                                backgroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withOpacity(0.1),
+                                child: Text(
+                                  name[0].toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                              title: Text(name),
+                              onTap: () {
+                                _personNameController.text = name;
+                                setState(() => _showNameSuggestions = false);
+                                _personFocusNode.unfocus();
+                              },
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
-
-                // Amount
                 TextFormField(
                   controller: _amountController,
                   decoration: const InputDecoration(
@@ -172,8 +277,6 @@ class _AddDebtModalState extends State<AddDebtModal> {
                   },
                 ),
                 const SizedBox(height: 16),
-
-                // Description
                 TextFormField(
                   controller: _descriptionController,
                   decoration: const InputDecoration(
@@ -194,8 +297,6 @@ class _AddDebtModalState extends State<AddDebtModal> {
                   },
                 ),
                 const SizedBox(height: 16),
-
-                // Due Date
                 InkWell(
                   onTap: () async {
                     final date = await showDatePicker(
@@ -205,9 +306,7 @@ class _AddDebtModalState extends State<AddDebtModal> {
                       lastDate: DateTime.now().add(const Duration(days: 3650)),
                     );
                     if (date != null) {
-                      setState(() {
-                        _dueDate = date;
-                      });
+                      setState(() => _dueDate = date);
                     }
                   },
                   child: InputDecorator(
@@ -233,8 +332,6 @@ class _AddDebtModalState extends State<AddDebtModal> {
                   ),
                 ),
                 const SizedBox(height: 16),
-
-                // Note
                 TextFormField(
                   controller: _noteController,
                   decoration: const InputDecoration(
@@ -249,8 +346,6 @@ class _AddDebtModalState extends State<AddDebtModal> {
                   maxLines: 2,
                 ),
                 const SizedBox(height: 24),
-
-                // Submit Button
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -288,11 +383,7 @@ class _AddDebtModalState extends State<AddDebtModal> {
     final isSelected = _debtType == type;
 
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          _debtType = type;
-        });
-      },
+      onTap: () => setState(() => _debtType = type),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
@@ -333,9 +424,9 @@ class _AddDebtModalState extends State<AddDebtModal> {
   void _submitDebt() {
     if (_formKey.currentState!.validate()) {
       final debt = DebtModel(
-        id: '', // Will be set by Firebase key
+        id: '',
         type: _debtType,
-        personName: _personNameController.text,
+        personName: _personNameController.text.trim(),
         amount: double.parse(_amountController.text),
         paidAmount: 0,
         description: _descriptionController.text,
@@ -345,13 +436,9 @@ class _AddDebtModalState extends State<AddDebtModal> {
         isPaid: false,
       );
 
-      // Close modal first
       Navigator.pop(context);
-
-      // Add debt (stream will update UI automatically)
       context.read<DebtCubit>().addDebt(debt);
 
-      // Show success message after a brief delay
       Future.delayed(const Duration(milliseconds: 300), () {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -369,4 +456,3 @@ class _AddDebtModalState extends State<AddDebtModal> {
     }
   }
 }
-

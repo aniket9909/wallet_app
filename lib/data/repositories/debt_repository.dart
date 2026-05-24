@@ -31,6 +31,7 @@ class DebtRepository {
       paidAmount: newPaidAmount.toDouble(),
       isPaid: isPaid,
     ));
+  }
 
   double getTotalBorrowed(List<DebtModel> debts) {
     return debts
@@ -43,6 +44,4 @@ class DebtRepository {
         .where((d) => d.type == DebtType.lend && !d.isPaid)
         .fold(0.0, (sum, debt) => sum + debt.remainingAmount);
   }
-}
-
 }
