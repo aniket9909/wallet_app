@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../logic/cubits/sms_cubit.dart';
+import '../../data/models/sms_message_model.dart';
 import '../screens/sms_messages_screen.dart';
 
 class SmsSetupSection extends StatefulWidget {
@@ -69,6 +70,11 @@ class _SmsSetupSectionState extends State<SmsSetupSection> {
             state is SmsLoaded && state.smsPermissionGranted;
         final messageCount = state is SmsLoaded ? state.messages.length : 0;
         final unreadCount = state is SmsLoaded ? state.unreadCount : 0;
+        final pendingSync = state is SmsLoaded
+            ? state.messages
+                .where((m) => m.status == SmsStatus.pending && !m.isRead)
+                .length
+            : 0;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -167,13 +173,40 @@ class _SmsSetupSectionState extends State<SmsSetupSection> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Imports messages containing debit, credit, debited, credited, etc.',
+                      'Imports debit/credit SMS. Tap a message to sync amount to an account.',
                       style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                     ),
                   ],
                 ],
               ),
             ),
+            if (pendingSync > 0) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.sync, color: Colors.blue, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '$pendingSync SMS ready to sync to wallet',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             ListTile(
               shape: RoundedRectangleBorder(

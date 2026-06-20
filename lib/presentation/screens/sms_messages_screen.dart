@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import '../../logic/cubits/sms_cubit.dart';
 import '../../data/models/sms_message_model.dart';
+import '../widgets/sms_sync_sheet.dart';
 
 enum SmsListFilter { all, debit, credit }
 
@@ -203,6 +204,9 @@ class _SmsMessagesScreenState extends State<SmsMessagesScreen> {
                           return _SmsMessageCard(
                             message: message,
                             onTap: () => _showMessageDetails(context, message),
+                            onSync: message.status == SmsStatus.correct
+                                ? null
+                                : () => SmsSyncSheet.show(context, message),
                             onDelete: () =>
                                 _showDeleteConfirmation(context, message),
                             onMarkRead: message.isRead
@@ -249,6 +253,7 @@ class _SmsMessagesScreenState extends State<SmsMessagesScreen> {
     final dateFormat = DateFormat('MMM dd, yyyy hh:mm a');
     final isCredit = message.transactionType == 'credit';
     final typeColor = isCredit ? Colors.green : Colors.red;
+    final isSynced = message.status == SmsStatus.correct;
 
     showDialog(
       context: context,
@@ -257,10 +262,28 @@ class _SmsMessagesScreenState extends State<SmsMessagesScreen> {
           children: [
             Icon(Icons.sms, color: typeColor),
             const SizedBox(width: 8),
-            Text(
-              isCredit ? 'Credit SMS' : 'Debit SMS',
-              style: TextStyle(color: typeColor, fontSize: 18),
+            Expanded(
+              child: Text(
+                isCredit ? 'Credit SMS' : 'Debit SMS',
+                style: TextStyle(color: typeColor, fontSize: 18),
+              ),
             ),
+            if (isSynced)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'Synced',
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
           ],
         ),
         content: SingleChildScrollView(
@@ -325,7 +348,16 @@ class _SmsMessagesScreenState extends State<SmsMessagesScreen> {
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Close'),
           ),
-          if (!message.isRead)
+          if (!isSynced)
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                SmsSyncSheet.show(context, message);
+              },
+              icon: const Icon(Icons.sync, size: 18),
+              label: const Text('Sync to Wallet'),
+            ),
+          if (!message.isRead && !isSynced)
             TextButton(
               onPressed: () {
                 context.read<SmsCubit>().markAsRead(message.id!);
@@ -438,12 +470,14 @@ class _FilterChipButton extends StatelessWidget {
 class _SmsMessageCard extends StatelessWidget {
   final SmsMessageModel message;
   final VoidCallback onTap;
+  final VoidCallback? onSync;
   final VoidCallback onDelete;
   final VoidCallback? onMarkRead;
 
   const _SmsMessageCard({
     required this.message,
     required this.onTap,
+    this.onSync,
     required this.onDelete,
     this.onMarkRead,
   });
@@ -452,6 +486,7 @@ class _SmsMessageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('MMM dd, yyyy hh:mm a');
     final isUnread = !message.isRead;
+    final isSynced = message.status == SmsStatus.correct;
     final isCredit = message.transactionType == 'credit';
     final typeColor = isCredit ? Colors.green : Colors.red;
 
@@ -503,7 +538,27 @@ class _SmsMessageCard extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            if (isUnread) ...[
+                            if (isSynced) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  'Synced',
+                                  style: TextStyle(
+                                    color: Colors.green,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ] else if (isUnread) ...[
                               const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -567,6 +622,19 @@ class _SmsMessageCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  if (onSync != null)
+                    ElevatedButton.icon(
+                      onPressed: onSync,
+                      icon: const Icon(Icons.sync, size: 16),
+                      label: const Text('Sync'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        textStyle: const TextStyle(fontSize: 13),
+                      ),
+                    ),
                   if (onMarkRead != null)
                     TextButton.icon(
                       onPressed: onMarkRead,

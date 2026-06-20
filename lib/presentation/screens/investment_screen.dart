@@ -14,114 +14,115 @@ class InvestmentScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Column(
-        children: [
-          BlocBuilder<InvestmentCubit, InvestmentState>(
-                builder: (context, state) {
-                  if (state is InvestmentLoaded) {
-                    final totalInvested = state.investments
-                        .fold(0.0, (sum, inv) => sum + inv.investedAmount);
-                    final totalCurrent = state.investments
-                        .fold(0.0, (sum, inv) => sum + inv.currentValue);
-                    final totalProfit = totalCurrent - totalInvested;
-                    final profitPercentage = totalInvested > 0
-                        ? (totalProfit / totalInvested * 100)
-                        : 0.0;
-
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildSummaryCard(
-                                  context,
-                                  'Invested',
-                                  totalInvested,
-                                  Colors.blue,
-                                  Icons.trending_up,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _buildSummaryCard(
-                                  context,
-                                  'Current Value',
-                                  totalCurrent,
-                                  Colors.green,
-                                  Icons.account_balance_wallet,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          _buildProfitCard(context, totalProfit, profitPercentage),
-                        ],
-                      ),
-                    ).animate(delay: 200.ms).fadeIn(duration: 600.ms);
-                  }
-                  return const SizedBox();
-                },
-              ),
-
-          const SizedBox(height: 12),
-          Expanded(
-            child: BlocBuilder<InvestmentCubit, InvestmentState>(
-              builder: (context, state) {
-                if (state is InvestmentLoading) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (state is InvestmentError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
-                        const SizedBox(height: 16),
-                        const Text('Error loading investments'),
-                        const SizedBox(height: 8),
-                        Text(state.message),
-                      ],
-                    ),
-                  );
-                }
-
-                if (state is InvestmentLoaded) {
-                  if (state.investments.isEmpty) {
-                    return _buildEmptyState(context);
-                  }
-
-                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: state.investments.length,
-                    itemBuilder: (context, index) {
-                      final investment = state.investments[index];
-                      return InvestmentCard(
-                        investment: investment,
-                        onTap: () => _showInvestmentDetails(context, investment),
-                        index: index,
-                      );
-                    },
-                  );
-                }
-
-                return const SizedBox();
-              },
-            ),
-          ),
-        ],
-      ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          _showAddInvestmentModal(context);
-        },
+        onPressed: () => _showAddInvestmentModal(context),
         icon: const Icon(Icons.add),
         label: const Text('Add Investment'),
         elevation: 4,
       ),
+      body: BlocBuilder<InvestmentCubit, InvestmentState>(
+        builder: (context, state) {
+          if (state is InvestmentLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (state is InvestmentError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                    const SizedBox(height: 16),
+                    const Text('Error loading investments'),
+                    const SizedBox(height: 8),
+                    Text(state.message, textAlign: TextAlign.center),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          if (state is InvestmentLoaded) {
+            if (state.investments.isEmpty) {
+              return _buildEmptyState(context);
+            }
+
+            return CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: _buildSummarySection(context, state),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final investment = state.investments[index];
+                        return InvestmentCard(
+                          investment: investment,
+                          onTap: () =>
+                              _showInvestmentDetails(context, investment),
+                          index: index,
+                        );
+                      },
+                      childCount: state.investments.length,
+                    ),
+                  ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 88)),
+              ],
+            );
+          }
+
+          return const SizedBox();
+        },
+      ),
     );
+  }
+
+  Widget _buildSummarySection(BuildContext context, InvestmentLoaded state) {
+    final totalInvested =
+        state.investments.fold(0.0, (sum, inv) => sum + inv.investedAmount);
+    final totalCurrent =
+        state.investments.fold(0.0, (sum, inv) => sum + inv.currentValue);
+    final totalProfit = totalCurrent - totalInvested;
+    final profitPercentage =
+        totalInvested > 0 ? (totalProfit / totalInvested * 100) : 0.0;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryCard(
+                  context,
+                  'Invested',
+                  totalInvested,
+                  Colors.blue,
+                  Icons.trending_up,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildSummaryCard(
+                  context,
+                  'Current Value',
+                  totalCurrent,
+                  Colors.green,
+                  Icons.account_balance_wallet,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildProfitCard(context, totalProfit, profitPercentage),
+        ],
+      ),
+    ).animate(delay: 200.ms).fadeIn(duration: 600.ms);
   }
 
   Widget _buildSummaryCard(
@@ -134,7 +135,7 @@ class InvestmentScreen extends StatelessWidget {
     final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -148,36 +149,42 @@ class InvestmentScreen extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: color, size: 20),
+                child: Icon(icon, color: color, size: 18),
               ),
-              const Spacer(),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
             title,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               color: Colors.grey[600],
               fontWeight: FontWeight.w500,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 4),
-          Text(
-            currencyFormat.format(amount),
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: color,
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              currencyFormat.format(amount),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
             ),
           ),
         ],
@@ -191,7 +198,7 @@ class InvestmentScreen extends StatelessWidget {
     final color = isProfit ? Colors.green : Colors.red;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -203,54 +210,63 @@ class InvestmentScreen extends StatelessWidget {
         border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                isProfit ? 'Total Profit' : 'Total Loss',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  isProfit ? 'Total Profit' : 'Total Loss',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                currencyFormat.format(profit.abs()),
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: color,
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    currencyFormat.format(profit.abs()),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 'Return',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   color: Colors.grey[600],
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     isProfit ? Icons.trending_up : Icons.trending_down,
                     color: color,
-                    size: 20,
+                    size: 18,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     '${percentage.toStringAsFixed(2)}%',
                     style: TextStyle(
-                      fontSize: 20,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: color,
                     ),
@@ -265,50 +281,64 @@ class InvestmentScreen extends StatelessWidget {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.trending_up,
-              size: 80,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          )
-              .animate(onPlay: (controller) => controller.repeat())
-              .shimmer(duration: 2000.ms),
-          const SizedBox(height: 24),
-          Text(
-            'No investments yet',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color:
+                        Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.trending_up,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                )
+                    .animate(onPlay: (controller) => controller.repeat())
+                    .shimmer(duration: 2000.ms),
+                const SizedBox(height: 20),
+                Text(
+                  'No investments yet',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                  textAlign: TextAlign.center,
                 ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Start tracking your investments!',
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () => _showAddInvestmentModal(context),
-            icon: const Icon(Icons.add),
-            label: const Text('Add Investment'),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
+                const SizedBox(height: 8),
+                Text(
+                  'Start tracking your investments!',
+                  style: TextStyle(color: Colors.grey[600]),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: () => _showAddInvestmentModal(context),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Investment'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

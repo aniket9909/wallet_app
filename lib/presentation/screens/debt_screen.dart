@@ -10,7 +10,7 @@ import '../widgets/debt_card.dart';
 import '../widgets/latest_debt_banner.dart';
 import '../widgets/person_debt_history_sheet.dart';
 
-enum DebtFilter { youOwe, owed, completed }
+enum DebtFilter { active, youOwe, owed, completed }
 
 class DebtScreen extends StatefulWidget {
   const DebtScreen({super.key});
@@ -20,144 +20,111 @@ class DebtScreen extends StatefulWidget {
 }
 
 class _DebtScreenState extends State<DebtScreen> {
-  DebtFilter _filter = DebtFilter.youOwe;
+  DebtFilter _filter = DebtFilter.active;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Column(
-        children: [
-          BlocBuilder<DebtCubit, DebtState>(
-            builder: (context, state) {
-              if (state is DebtLoaded) {
-                final activeDebts =
-                    state.debts.where((d) => !d.isPaid).toList();
-                final totalBorrowed = activeDebts
-                    .where((d) => d.type == DebtType.borrow)
-                    .fold(0.0, (sum, debt) => sum + debt.remainingAmount);
-                final totalLent = activeDebts
-                    .where((d) => d.type == DebtType.lend)
-                    .fold(0.0, (sum, debt) => sum + debt.remainingAmount);
-                final totalOverdue = activeDebts
-                    .where((d) => d.isOverdue)
-                    .fold(0.0, (sum, debt) => sum + debt.remainingAmount);
-                final totalActive = activeDebts.fold(
-                    0.0, (sum, debt) => sum + debt.remainingAmount);
-
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildSummaryCard(
-                              context,
-                              'You Owe',
-                              totalBorrowed,
-                              Colors.red,
-                              Icons.arrow_downward,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildSummaryCard(
-                              context,
-                              "You're Owed",
-                              totalLent,
-                              Colors.green,
-                              Icons.arrow_upward,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildSummaryCard(
-                              context,
-                              'Total Overdue',
-                              totalOverdue,
-                              Colors.deepOrange,
-                              Icons.warning_amber_rounded,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildSummaryCard(
-                              context,
-                              'Total Active',
-                              totalActive,
-                              Colors.blue,
-                              Icons.pending_actions,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ).animate(delay: 200.ms).fadeIn(duration: 600.ms);
-              }
-              return const SizedBox();
-            },
-          ),
-          const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildFilterBar(),
-              ),
-              const SizedBox(height: 8),
-          Expanded(
-            child: BlocBuilder<DebtCubit, DebtState>(
-              builder: (context, state) {
-                if (state is DebtLoading) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (state is DebtError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.error_outline,
-                            size: 64, color: Colors.red[300]),
-                        const SizedBox(height: 16),
-                        const Text('Error loading debts'),
-                        const SizedBox(height: 8),
-                        Text(state.message),
-                      ],
-                    ),
-                  );
-                }
-
-                if (state is DebtLoaded) {
-                  if (state.debts.isEmpty) {
-                    return _buildEmptyState(context);
-                  }
-                  return _buildDebtsList(context, state.debts);
-                }
-
-                return const SizedBox();
-              },
-            ),
-          ),
-        ],
-      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddDebtModal(context),
         icon: const Icon(Icons.add),
         label: const Text('Add Debt'),
         elevation: 4,
       ),
+      body: BlocBuilder<DebtCubit, DebtState>(
+        builder: (context, state) {
+          if (state is DebtLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (state is DebtError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                    const SizedBox(height: 16),
+                    const Text('Error loading debts'),
+                    const SizedBox(height: 8),
+                    Text(state.message, textAlign: TextAlign.center),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          if (state is DebtLoaded) {
+            if (state.debts.isEmpty) {
+              return _buildEmptyState(context);
+            }
+
+            return CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: _buildSummarySection(context, state.debts),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: _buildFilterBar(),
+                  ),
+                ),
+                ..._buildDebtListSlivers(context, state.debts),
+              ],
+            );
+          }
+
+          return const SizedBox();
+        },
+      ),
     );
+  }
+
+  Widget _buildSummarySection(BuildContext context, List<DebtModel> debts) {
+    final activeDebts = debts.where((d) => !d.isPaid).toList();
+    final totalBorrowed = activeDebts
+        .where((d) => d.type == DebtType.borrow)
+        .fold(0.0, (sum, debt) => sum + debt.remainingAmount);
+    final totalLent = activeDebts
+        .where((d) => d.type == DebtType.lend)
+        .fold(0.0, (sum, debt) => sum + debt.remainingAmount);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildSummaryCard(
+              context,
+              'You Owe',
+              totalBorrowed,
+              Colors.red,
+              Icons.arrow_downward,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildSummaryCard(
+              context,
+              'Owed to You',
+              totalLent,
+              Colors.green,
+              Icons.arrow_upward,
+            ),
+          ),
+        ],
+      ),
+    ).animate(delay: 200.ms).fadeIn(duration: 600.ms);
   }
 
   Widget _buildFilterBar() {
     return BlocBuilder<DebtCubit, DebtState>(
       builder: (context, state) {
         final debts = state is DebtLoaded ? state.debts : <DebtModel>[];
+        final activeCount = debts.where((d) => !d.isPaid).length;
         final youOweCount =
             debts.where((d) => d.type == DebtType.borrow && !d.isPaid).length;
         final owedCount =
@@ -166,6 +133,17 @@ class _DebtScreenState extends State<DebtScreen> {
 
         return Row(
           children: [
+            Expanded(
+              child: _FilterChip(
+                label: 'Active',
+                count: activeCount,
+                icon: Icons.pending_actions,
+                color: Colors.blue,
+                isSelected: _filter == DebtFilter.active,
+                onTap: () => setState(() => _filter = DebtFilter.active),
+              ),
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: _FilterChip(
                 label: 'You Owe',
@@ -190,7 +168,7 @@ class _DebtScreenState extends State<DebtScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: _FilterChip(
-                label: 'Complete',
+                label: 'Done',
                 count: completedCount,
                 icon: Icons.check_circle_outline,
                 color: Colors.blueGrey,
@@ -204,7 +182,13 @@ class _DebtScreenState extends State<DebtScreen> {
     );
   }
 
-  Widget _buildDebtsList(BuildContext context, List<DebtModel> debts) {
+  List<Widget> _buildDebtListSlivers(
+    BuildContext context,
+    List<DebtModel> debts,
+  ) {
+    final allActive = sortDebtsByDateDesc(
+      debts.where((d) => !d.isPaid).toList(),
+    );
     final activeBorrow = sortDebtsByDateDesc(
       debts.where((d) => d.type == DebtType.borrow && !d.isPaid).toList(),
     );
@@ -221,6 +205,11 @@ class _DebtScreenState extends State<DebtScreen> {
     Color sectionColor;
 
     switch (_filter) {
+      case DebtFilter.active:
+        filtered = allActive;
+        sectionTitle = 'Active Debts';
+        sectionIcon = Icons.pending_actions;
+        sectionColor = Colors.blue;
       case DebtFilter.youOwe:
         filtered = activeBorrow;
         sectionTitle = 'You Owe';
@@ -239,57 +228,94 @@ class _DebtScreenState extends State<DebtScreen> {
     }
 
     if (filtered.isEmpty) {
-      return _buildEmptyFilterState(context);
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: _buildEmptyFilterState(context),
+        ),
+      ];
     }
 
     final latest = latestDebt(filtered);
+    final slivers = <Widget>[];
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (latest != null) ...[
-            Text(
-              'Recently Added',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+    if (latest != null) {
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Recently Added',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                LatestDebtBanner(
+                  debt: latest,
+                  onTap: () =>
+                      _openPersonHistory(context, latest.personName, debts),
+                ),
+                const SizedBox(height: 20),
+              ],
             ),
-            const SizedBox(height: 12),
-            LatestDebtBanner(
-              debt: latest,
-              onTap: () => _openPersonHistory(context, latest.personName, debts),
-            ),
-            const SizedBox(height: 24),
-          ],
-          _buildSectionHeader(
+          ),
+        ),
+      );
+    }
+
+    slivers.add(
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        sliver: SliverToBoxAdapter(
+          child: _buildSectionHeader(
             context,
             sectionTitle,
             filtered.length,
             icon: sectionIcon,
             color: sectionColor,
           ),
-          const SizedBox(height: 12),
-          ...filtered.asMap().entries.map(
-                (e) => DebtCard(
-                  debt: e.value,
-                  onTap: () => _openPersonHistory(
-                    context,
-                    e.value.personName,
-                    debts,
-                  ),
-                  index: e.key,
-                ),
-              ),
-          const SizedBox(height: 80),
-        ],
+        ),
       ),
     );
+
+    slivers.add(const SliverToBoxAdapter(child: SizedBox(height: 12)));
+
+    slivers.add(
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        sliver: SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => DebtCard(
+              debt: filtered[index],
+              onTap: () => _openPersonHistory(
+                context,
+                filtered[index].personName,
+                debts,
+              ),
+              index: index,
+            ),
+            childCount: filtered.length,
+          ),
+        ),
+      ),
+    );
+
+    slivers.add(const SliverToBoxAdapter(child: SizedBox(height: 88)));
+
+    return slivers;
   }
 
   Widget _buildEmptyFilterState(BuildContext context) {
     final (title, subtitle, icon) = switch (_filter) {
+      DebtFilter.active => (
+          'No active debts',
+          'Unpaid debts will show here',
+          Icons.pending_actions,
+        ),
       DebtFilter.youOwe => (
           'Nothing you owe',
           'Active debts you owe will show here',
@@ -307,28 +333,27 @@ class _DebtScreenState extends State<DebtScreen> {
         ),
     };
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-          ],
-        ),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+        ],
       ),
     );
   }
@@ -394,7 +419,7 @@ class _DebtScreenState extends State<DebtScreen> {
     final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -408,51 +433,42 @@ class _DebtScreenState extends State<DebtScreen> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  amount > 0 ? 'Active' : 'Clear',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
+                child: Icon(icon, color: color, size: 18),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
             title,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               color: Colors.grey[600],
               fontWeight: FontWeight.w500,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 4),
-          Text(
-            currencyFormat.format(amount),
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: color,
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              currencyFormat.format(amount),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
             ),
           ),
         ],
@@ -461,50 +477,64 @@ class _DebtScreenState extends State<DebtScreen> {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.account_balance_wallet_outlined,
-              size: 80,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          )
-              .animate(onPlay: (controller) => controller.repeat())
-              .shimmer(duration: 2000.ms),
-          const SizedBox(height: 24),
-          Text(
-            'No debts yet',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color:
+                        Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.account_balance_wallet_outlined,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                )
+                    .animate(onPlay: (controller) => controller.repeat())
+                    .shimmer(duration: 2000.ms),
+                const SizedBox(height: 20),
+                Text(
+                  'No debts yet',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                  textAlign: TextAlign.center,
                 ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Track money you owe or are owed!',
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () => _showAddDebtModal(context),
-            icon: const Icon(Icons.add),
-            label: const Text('Add Debt'),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
+                const SizedBox(height: 8),
+                Text(
+                  'Track money you owe or are owed!',
+                  style: TextStyle(color: Colors.grey[600]),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: () => _showAddDebtModal(context),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Debt'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -548,7 +578,7 @@ class _FilterChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
           decoration: BoxDecoration(
             color: isSelected ? color.withOpacity(0.15) : Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -567,29 +597,25 @@ class _FilterChip extends StatelessWidget {
                 : null,
           ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    icon,
-                    size: 16,
-                    color: isSelected ? color : Colors.grey[600],
-                  ),
-                  const SizedBox(width: 4),
-                  Flexible(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.w500,
-                        color: isSelected ? color : Colors.grey[700],
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
+              Icon(
+                icon,
+                size: 16,
+                color: isSelected ? color : Colors.grey[600],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight:
+                      isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected ? color : Colors.grey[700],
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 4),
               Container(

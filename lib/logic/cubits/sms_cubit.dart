@@ -119,6 +119,22 @@ class SmsCubit extends Cubit<SmsState> {
     }
   }
 
+  Future<void> finalizeSync(int id) async {
+    try {
+      await _repository.markAsRead(id);
+      await _repository.updateSmsStatus(id, SmsStatus.correct);
+      final sms = await _repository.getSmsById(id);
+      if (sms != null) {
+        await _repository.updateSmsInFirebase(
+          sms.copyWith(isRead: true, status: SmsStatus.correct),
+        );
+      }
+      await loadAllSms();
+    } catch (e) {
+      emit(SmsError(e.toString()));
+    }
+  }
+
   Future<void> markAsCorrect(int id) async {
     try {
       await _repository.updateSmsStatus(id, SmsStatus.correct);
