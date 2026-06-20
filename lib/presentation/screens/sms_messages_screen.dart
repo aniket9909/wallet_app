@@ -5,23 +5,53 @@ import 'package:intl/intl.dart';
 import '../../logic/cubits/sms_cubit.dart';
 import '../../data/models/sms_message_model.dart';
 
-class SmsMessagesScreen extends StatelessWidget {
+enum SmsListFilter { all, debit, credit }
+
+class SmsMessagesScreen extends StatefulWidget {
   const SmsMessagesScreen({super.key});
+
+  @override
+  State<SmsMessagesScreen> createState() => _SmsMessagesScreenState();
+}
+
+class _SmsMessagesScreenState extends State<SmsMessagesScreen> {
+  SmsListFilter _filter = SmsListFilter.all;
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<SmsCubit>().loadAllSms();
+  }
+
+  List<SmsMessageModel> _filtered(List<SmsMessageModel> messages) {
+    switch (_filter) {
+      case SmsListFilter.all:
+        return messages;
+      case SmsListFilter.debit:
+        return messages
+            .where((m) => m.transactionType == 'debit')
+            .toList();
+      case SmsListFilter.credit:
+        return messages
+            .where((m) => m.transactionType == 'credit')
+            .toList();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SMS Messages'),
+        title: const Text('Bank SMS Alerts'),
         actions: [
           BlocBuilder<SmsCubit, SmsState>(
             builder: (context, state) {
               if (state is SmsLoaded && state.unreadCount > 0) {
                 return Center(
                   child: Padding(
-                    padding: const EdgeInsets.only(right: 16),
+                    padding: const EdgeInsets.only(right: 8),
                     child: Chip(
-                      label: Text('${state.unreadCount} unread'),
+                      label: Text('${state.unreadCount} new'),
                       backgroundColor: Colors.blue,
                       labelStyle: const TextStyle(color: Colors.white),
                     ),
@@ -30,6 +60,11 @@ class SmsMessagesScreen extends StatelessWidget {
               }
               return const SizedBox();
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.sync),
+            tooltip: 'Scan inbox',
+            onPressed: () => _scanInbox(context),
           ),
           PopupMenuButton(
             itemBuilder: (context) => [
@@ -63,95 +98,169 @@ class SmsMessagesScreen extends StatelessWidget {
             ],
           ),
         ),
-        child: BlocBuilder<SmsCubit, SmsState>(
-          builder: (context, state) {
-            if (state is SmsLoading) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (state is SmsError) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
-                    const SizedBox(height: 16),
-                    Text('Error: ${state.message}'),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () => context.read<SmsCubit>().loadAllSms(),
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            if (state is SmsLoaded) {
-              if (state.messages.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.sms_outlined, size: 64, color: Colors.grey[400]),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No SMS messages',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Messages will appear here when received',
-                        style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                      ),
-                    ],
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Row(
+                children: [
+                  _FilterChipButton(
+                    label: 'All',
+                    selected: _filter == SmsListFilter.all,
+                    onTap: () => setState(() => _filter = SmsListFilter.all),
                   ),
-                );
-              }
+                  const SizedBox(width: 8),
+                  _FilterChipButton(
+                    label: 'Debit',
+                    selected: _filter == SmsListFilter.debit,
+                    color: Colors.red,
+                    onTap: () => setState(() => _filter = SmsListFilter.debit),
+                  ),
+                  const SizedBox(width: 8),
+                  _FilterChipButton(
+                    label: 'Credit',
+                    selected: _filter == SmsListFilter.credit,
+                    color: Colors.green,
+                    onTap: () => setState(() => _filter = SmsListFilter.credit),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: BlocBuilder<SmsCubit, SmsState>(
+                builder: (context, state) {
+                  if (state is SmsLoading) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-              return RefreshIndicator(
-                onRefresh: () async {
-                  context.read<SmsCubit>().loadAllSms();
+                  if (state is SmsError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error_outline,
+                              size: 64, color: Colors.red[300]),
+                          const SizedBox(height: 16),
+                          Text('Error: ${state.message}'),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () =>
+                                context.read<SmsCubit>().loadAllSms(),
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  if (state is SmsLoaded) {
+                    final messages = _filtered(state.messages);
+
+                    if (messages.isEmpty) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.sms_outlined,
+                                  size: 64, color: Colors.grey[400]),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No ${_filter == SmsListFilter.all ? 'debit/credit' : _filter.name} SMS',
+                                style: TextStyle(color: Colors.grey[600]),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Tap sync or enable SMS in Settings, then scan inbox',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              ElevatedButton.icon(
+                                onPressed: () => _scanInbox(context),
+                                icon: const Icon(Icons.sync),
+                                label: const Text('Scan SMS Inbox'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    return RefreshIndicator(
+                      onRefresh: () async {
+                        await context.read<SmsCubit>().scanInbox();
+                      },
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final message = messages[index];
+                          return _SmsMessageCard(
+                            message: message,
+                            onTap: () => _showMessageDetails(context, message),
+                            onDelete: () =>
+                                _showDeleteConfirmation(context, message),
+                            onMarkRead: message.isRead
+                                ? null
+                                : () => context
+                                    .read<SmsCubit>()
+                                    .markAsRead(message.id!),
+                          )
+                              .animate()
+                              .fadeIn(
+                                  duration: 300.ms, delay: (index * 50).ms)
+                              .slideX(begin: 0.1, end: 0);
+                        },
+                      ),
+                    );
+                  }
+
+                  return const SizedBox();
                 },
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: state.messages.length,
-                  itemBuilder: (context, index) {
-                    final message = state.messages[index];
-                    return _SmsMessageCard(
-                      message: message,
-                      onTap: () => _showMessageDetails(context, message),
-                      onDelete: () => _showDeleteConfirmation(context, message),
-                      onMarkRead: message.isRead
-                          ? null
-                          : () => context.read<SmsCubit>().markAsRead(message.id!),
-                    )
-                        .animate()
-                        .fadeIn(duration: 300.ms, delay: (index * 50).ms)
-                        .slideX(begin: 0.1, end: 0);
-                  },
-                ),
-              );
-            }
-
-            return const SizedBox();
-          },
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
+  Future<void> _scanInbox(BuildContext context) async {
+    final result = await context.read<SmsCubit>().scanInbox();
+    if (!context.mounted) return;
+    if (result != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Imported ${result.imported} debit/credit SMS (${result.skipped} skipped)',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
   void _showMessageDetails(BuildContext context, SmsMessageModel message) {
     final dateFormat = DateFormat('MMM dd, yyyy hh:mm a');
-    
+    final isCredit = message.transactionType == 'credit';
+    final typeColor = isCredit ? Colors.green : Colors.red;
+
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Row(
           children: [
-            const Icon(Icons.sms, color: Colors.blue),
+            Icon(Icons.sms, color: typeColor),
             const SizedBox(width: 8),
-            const Text('SMS Details'),
+            Text(
+              isCredit ? 'Credit SMS' : 'Debit SMS',
+              style: TextStyle(color: typeColor, fontSize: 18),
+            ),
           ],
         ),
         content: SingleChildScrollView(
@@ -159,10 +268,29 @@ class SmsMessagesScreen extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (message.amount != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: typeColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${isCredit ? '+' : '-'}₹${message.amount!.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: typeColor,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               _DetailRow(
                 icon: Icons.phone,
                 label: 'From',
-                value: message.address,
+                value: message.address.isEmpty ? 'Unknown' : message.address,
               ),
               const SizedBox(height: 12),
               _DetailRow(
@@ -238,7 +366,9 @@ class SmsMessagesScreen extends StatelessWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Delete All SMS'),
-        content: const Text('Are you sure you want to delete all SMS messages? This action cannot be undone.'),
+        content: const Text(
+          'Delete all stored debit/credit SMS? This cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
@@ -252,6 +382,54 @@ class SmsMessagesScreen extends StatelessWidget {
             child: const Text('Delete All', style: TextStyle(color: Colors.red)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FilterChipButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color? color;
+  final VoidCallback onTap;
+
+  const _FilterChipButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = color ?? Theme.of(context).colorScheme.primary;
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: selected ? c.withOpacity(0.15) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: selected ? c : Colors.grey[300]!,
+              ),
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                color: selected ? c : Colors.grey[700],
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -274,6 +452,8 @@ class _SmsMessageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('MMM dd, yyyy hh:mm a');
     final isUnread = !message.isRead;
+    final isCredit = message.transactionType == 'credit';
+    final typeColor = isCredit ? Colors.green : Colors.red;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -291,10 +471,10 @@ class _SmsMessageCard extends StatelessWidget {
               Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: Colors.blue.withOpacity(0.12),
-                    child: const Icon(
-                      Icons.sms,
-                      color: Colors.blue,
+                    backgroundColor: typeColor.withOpacity(0.12),
+                    child: Icon(
+                      isCredit ? Icons.arrow_downward : Icons.arrow_upward,
+                      color: typeColor,
                       size: 20,
                     ),
                   ),
@@ -305,16 +485,26 @@ class _SmsMessageCard extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Expanded(
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: typeColor.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                               child: Text(
-                                message.address.isEmpty ? 'Unknown' : message.address,
+                                isCredit ? 'CREDIT' : 'DEBIT',
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: typeColor,
                                 ),
                               ),
                             ),
-                            if (isUnread)
+                            if (isUnread) ...[
+                              const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 6,
@@ -333,9 +523,18 @@ class _SmsMessageCard extends StatelessWidget {
                                   ),
                                 ),
                               ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 4),
+                        Text(
+                          message.address.isEmpty ? 'Bank' : message.address,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight:
+                                isUnread ? FontWeight.bold : FontWeight.w500,
+                          ),
+                        ),
                         Text(
                           dateFormat.format(message.date),
                           style: TextStyle(
@@ -346,6 +545,15 @@ class _SmsMessageCard extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (message.amount != null)
+                    Text(
+                      '${isCredit ? '+' : '-'}₹${message.amount!.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: typeColor,
+                      ),
+                    ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -368,7 +576,6 @@ class _SmsMessageCard extends StatelessWidget {
                         foregroundColor: Colors.blue,
                       ),
                     ),
-                  const SizedBox(width: 8),
                   IconButton(
                     icon: const Icon(Icons.delete_outline, color: Colors.red),
                     onPressed: onDelete,
@@ -405,13 +612,9 @@ class _DetailRow extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         ),
         Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(fontSize: 14),
-          ),
+          child: Text(value, style: const TextStyle(fontSize: 14)),
         ),
       ],
     );
   }
 }
-

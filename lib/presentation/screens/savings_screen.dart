@@ -13,93 +13,97 @@ class SavingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Theme.of(context).colorScheme.primary.withOpacity(0.05),
-              Theme.of(context).colorScheme.secondary.withOpacity(0.05),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Text(
-                      'Smart Savings',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () {
-                        _showAddGoalModal(context);
-                      },
-                      icon: const Icon(Icons.add_circle_outline),
-                      iconSize: 28,
-                    ),
-                  ],
-                ).animate().fadeIn(duration: 400.ms),
-              ),
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          BlocBuilder<SavingsGoalCubit, SavingsGoalState>(
+            builder: (context, state) {
+              if (state is SavingsGoalLoaded && state.goals.isNotEmpty) {
+                final activeGoals =
+                    state.goals.where((g) => !g.isCompleted).toList();
+                final totalSaved = activeGoals.fold(
+                    0.0, (sum, g) => sum + g.savedSoFar);
+                final totalPending = activeGoals.fold(
+                    0.0, (sum, g) => sum + g.remainingAmount);
 
-              // Goals List
-              Expanded(
-                child: BlocBuilder<SavingsGoalCubit, SavingsGoalState>(
-                  builder: (context, state) {
-                    if (state is SavingsGoalLoading) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    if (state is SavingsGoalError) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.error_outline,
-                                size: 64, color: Colors.red[300]),
-                            const SizedBox(height: 16),
-                            const Text('Error loading goals'),
-                            const SizedBox(height: 8),
-                            Text(state.message),
-                          ],
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _buildSummaryCard(
+                          context,
+                          'Total Saved',
+                          totalSaved,
+                          Colors.green,
+                          Icons.savings,
                         ),
-                      );
-                    }
-
-                    if (state is SavingsGoalLoaded) {
-                      if (state.goals.isEmpty) {
-                        return _buildEmptyState(context);
-                      }
-
-                      return ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: state.goals.length,
-                        itemBuilder: (context, index) {
-                          final goal = state.goals[index];
-                          return GoalProgressCard(
-                            goal: goal,
-                            onTap: () => _showGoalDetails(context, goal),
-                            index: index,
-                          );
-                        },
-                      );
-                    }
-
-                    return const SizedBox();
-                  },
-                ),
-              ),
-            ],
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildSummaryCard(
+                          context,
+                          'Total Pending',
+                          totalPending,
+                          Colors.orange,
+                          Icons.pending_actions,
+                        ),
+                      ),
+                    ],
+                  ),
+                ).animate(delay: 200.ms).fadeIn(duration: 600.ms);
+              }
+              return const SizedBox();
+            },
           ),
-        ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: BlocBuilder<SavingsGoalCubit, SavingsGoalState>(
+              builder: (context, state) {
+                if (state is SavingsGoalLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (state is SavingsGoalError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error_outline,
+                            size: 64, color: Colors.red[300]),
+                        const SizedBox(height: 16),
+                        const Text('Error loading goals'),
+                        const SizedBox(height: 8),
+                        Text(state.message),
+                      ],
+                    ),
+                  );
+                }
+
+                if (state is SavingsGoalLoaded) {
+                  if (state.goals.isEmpty) {
+                    return _buildEmptyState(context);
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: state.goals.length,
+                    itemBuilder: (context, index) {
+                      final goal = state.goals[index];
+                      return GoalProgressCard(
+                        goal: goal,
+                        onTap: () => _showGoalDetails(context, goal),
+                        index: index,
+                      );
+                    },
+                  );
+                }
+
+                return const SizedBox();
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
@@ -108,6 +112,82 @@ class SavingsScreen extends StatelessWidget {
         icon: const Icon(Icons.flag),
         label: const Text('New Goal'),
         elevation: 4,
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(
+    BuildContext context,
+    String title,
+    double amount,
+    Color color,
+    IconData icon,
+  ) {
+    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  amount > 0 ? 'Active' : 'Clear',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            currencyFormat.format(amount),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }

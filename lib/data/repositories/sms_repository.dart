@@ -90,6 +90,22 @@ class SmsRepository {
     }
   }
 
+  Future<bool> existsByBodyAndDate(String body, DateTime date) async {
+    try {
+      return await _dbHelper.existsByBodyAndDate(body, date);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<List<SmsMessageModel>> getCreditDebitSms() async {
+    try {
+      return await _dbHelper.getCreditDebitSms();
+    } catch (e) {
+      return [];
+    }
+  }
+
   Future<void> updateSmsStatus(int id, SmsStatus status) async {
     try {
       final sms = await _dbHelper.getSmsById(id);

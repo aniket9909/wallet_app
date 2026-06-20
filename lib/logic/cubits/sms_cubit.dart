@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../data/repositories/sms_repository.dart';
 import '../../data/models/sms_message_model.dart';
+import '../../data/services/sms_import_service.dart';
 
 // States
 abstract class SmsState extends Equatable {
@@ -18,14 +19,16 @@ class SmsLoading extends SmsState {}
 class SmsLoaded extends SmsState {
   final List<SmsMessageModel> messages;
   final int unreadCount;
+  final bool smsPermissionGranted;
 
   const SmsLoaded({
     required this.messages,
     required this.unreadCount,
+    this.smsPermissionGranted = false,
   });
 
   @override
-  List<Object?> get props => [messages, unreadCount];
+  List<Object?> get props => [messages, unreadCount, smsPermissionGranted];
 }
 
 class SmsError extends SmsState {
@@ -40,18 +43,43 @@ class SmsError extends SmsState {
 // Cubit
 class SmsCubit extends Cubit<SmsState> {
   final SmsRepository _repository;
+  late final SmsImportService _importService;
 
-  SmsCubit(this._repository) : super(SmsInitial());
+  SmsCubit(this._repository) : super(SmsInitial()) {
+    _importService = SmsImportService(_repository);
+  }
 
   Future<void> loadAllSms() async {
     emit(SmsLoading());
     try {
-      final messages = await _repository.getAllSms();
+      final messages = await _repository.getCreditDebitSms();
       final unreadCount = await _repository.getUnreadCount();
-      emit(SmsLoaded(messages: messages, unreadCount: unreadCount));
+      final hasPermission = await _importService.hasSmsPermission();
+      emit(SmsLoaded(
+        messages: messages,
+        unreadCount: unreadCount,
+        smsPermissionGranted: hasPermission,
+      ));
     } catch (e) {
       emit(SmsError(e.toString()));
     }
+  }
+
+  Future<SmsImportResult?> scanInbox() async {
+    try {
+      final result = await _importService.importFromInbox();
+      await loadAllSms();
+      return result;
+    } catch (e) {
+      emit(SmsError(e.toString()));
+      return null;
+    }
+  }
+
+  Future<bool> requestPermission() async {
+    final granted = await _importService.requestSmsPermission();
+    await loadAllSms();
+    return granted;
   }
 
   Future<void> saveSms(SmsMessageModel sms) async {

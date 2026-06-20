@@ -147,6 +147,29 @@ class SmsDatabaseHelper {
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
+  Future<bool> existsByBodyAndDate(String body, DateTime date) async {
+    final db = await database;
+    final result = await db.query(
+      'sms_messages',
+      where: 'body = ? AND date = ?',
+      whereArgs: [body, date.millisecondsSinceEpoch],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<List<SmsMessageModel>> getCreditDebitSms() async {
+    final db = await database;
+    const orderBy = 'date DESC';
+    final result = await db.query(
+      'sms_messages',
+      where: 'is_credit_debit = ?',
+      whereArgs: [1],
+      orderBy: orderBy,
+    );
+    return result.map((map) => SmsMessageModel.fromMap(map)).toList();
+  }
+
   Future<void> close() async {
     final db = await database;
     await db.close();

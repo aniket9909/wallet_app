@@ -21,8 +21,7 @@ import 'data/repositories/debt_repository.dart';
 import 'data/repositories/investment_repository.dart';
 import 'data/repositories/partial_transaction_repository.dart';
 import 'data/repositories/sms_repository.dart';
-import 'data/models/sms_message_model.dart';
-import 'core/utils/sms_detection_util.dart';
+import 'data/services/sms_import_service.dart';
 
 // Logic Layer
 import 'logic/cubits/wallet_cubit.dart';
@@ -120,51 +119,26 @@ class _MyAppState extends State<MyApp> {
       print('  Address: $address');
       print('  Date: $date');
       
-      // Detect if SMS is credit/debit
-      final detection = SmsDetectionUtil.detectCreditDebit(body);
-      
-      if (detection == null) {
-        print('SMS is not a credit/debit transaction, skipping storage');
-        return; // Don't store non-transaction SMS
-      }
-      
-      print('SMS detected as ${detection.transactionType} transaction');
-      print('Amount: ${detection.amount}');
-      
-      // Store SMS in database (only credit/debit SMS)
       try {
-        final smsModel = SmsMessageModel(
-          body: body,
-          address: address,
-          date: date,
-          isRead: false,
-          status: SmsStatus.pending,
-          isCreditDebit: true,
-          amount: detection.amount,
-          transactionType: detection.transactionType,
-        );
-        print('Storing credit/debit SMS in database...');
         final appContext = navigatorKey.currentContext;
         if (appContext != null) {
-          final smsRepo = appContext.read<SmsRepository>();
-          await smsRepo.saveSms(smsModel);
-          print('SMS stored successfully in database');
-          
-          // Sync to Firebase
-          try {
-            await smsRepo.syncToFirebase(smsModel);
-            print('SMS synced to Firebase');
-          } catch (e) {
-            print('Error syncing SMS to Firebase: $e');
+          final importService = SmsImportService(appContext.read<SmsRepository>());
+          final saved = await importService.saveIfTransactionSms(
+            body: body,
+            address: address,
+            date: date,
+          );
+          if (!saved) {
+            print('SMS skipped (not debit/credit or duplicate)');
+            return;
           }
-          
-          // Update SMS cubit if available
+          print('Credit/debit SMS stored in database');
+
           try {
             final smsCubit = appContext.read<SmsCubit>();
             smsCubit.loadAllSms();
-            print('SMS cubit updated');
           } catch (e) {
-            print('Could not update SMS cubit (may not be initialized yet): $e');
+            print('Could not update SMS cubit: $e');
           }
         }
       } catch (e) {

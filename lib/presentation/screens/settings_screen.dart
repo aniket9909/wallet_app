@@ -1,4 +1,3 @@
-import 'package:ewallet/presentation/screens/sms_messages_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -11,6 +10,7 @@ import '../../data/models/settings_model.dart';
 import '../../data/models/partial_transaction_model.dart';
 import '../../data/models/transaction_model_new.dart';
 import '../widgets/settings_section.dart';
+import '../widgets/sms_setup_section.dart';
 import '../../routes/app_routes.dart';
 import 'account_last_digits_screen.dart';
 import 'package:intl/intl.dart';
@@ -37,7 +37,6 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
     super.dispose();
   }
   void _testSmsFunctionality() {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => SmsMessagesScreen()));
     // final accountState = context.read<AccountCubit>().state;
     // if (accountState is! AccountLoaded || accountState.accounts.isEmpty) {
     //   ScaffoldMessenger.of(context).showSnackBar(
@@ -280,20 +279,13 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
                       ).animate(delay: 600.ms).fadeIn(duration: 600.ms),
                       const SizedBox(height: 16),
 
-                      // Testing Section
+                      // SMS Setup
                       SettingsSection(
-                        title: 'Partial Transactions & SMS Messages',
-                        items: [
-                          SettingsTile(
-                            icon: Icons.bug_report_outlined,
-                            title: 'SMS Messages',
-                            subtitle: 'View all SMS messages',
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (context) => SmsMessagesScreen()));
-                            },
-                          ),
-                        ],
+                        title: 'SMS Bank Alerts',
+                        child: const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SmsSetupSection(),
+                        ),
                       ).animate(delay: 800.ms).fadeIn(duration: 600.ms),
                       const SizedBox(height: 16),
 

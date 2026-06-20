@@ -289,17 +289,21 @@ class _LoginPageState extends State<LoginPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        'Don\'t have an account? ',
-                        style: TextStyle(color: Colors.grey[600]),
+                      Flexible(
+                        child: Text(
+                          'Don\'t have an account? ',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
                       ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, AppRoutes.register);
-                        },
-                        child: const Text(
-                          'Register',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                      Flexible(
+                        child: TextButton(
+                          onPressed: () {
+                            Navigator.pushNamed(context, AppRoutes.register);
+                          },
+                          child: const Text(
+                            'Register',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
                     ],

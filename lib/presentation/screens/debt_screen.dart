@@ -25,52 +25,31 @@ class _DebtScreenState extends State<DebtScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Theme.of(context).colorScheme.primary.withOpacity(0.05),
-              Theme.of(context).colorScheme.secondary.withOpacity(0.05),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Text(
-                      'Debt Management',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => _showAddDebtModal(context),
-                      icon: const Icon(Icons.add_circle_outline),
-                      iconSize: 28,
-                    ),
-                  ],
-                ).animate().fadeIn(duration: 400.ms),
-              ),
-              BlocBuilder<DebtCubit, DebtState>(
-                builder: (context, state) {
-                  if (state is DebtLoaded) {
-                    final totalBorrowed = state.debts
-                        .where((d) => d.type == DebtType.borrow && !d.isPaid)
-                        .fold(0.0, (sum, debt) => sum + debt.remainingAmount);
-                    final totalLent = state.debts
-                        .where((d) => d.type == DebtType.lend && !d.isPaid)
-                        .fold(0.0, (sum, debt) => sum + debt.remainingAmount);
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          BlocBuilder<DebtCubit, DebtState>(
+            builder: (context, state) {
+              if (state is DebtLoaded) {
+                final activeDebts =
+                    state.debts.where((d) => !d.isPaid).toList();
+                final totalBorrowed = activeDebts
+                    .where((d) => d.type == DebtType.borrow)
+                    .fold(0.0, (sum, debt) => sum + debt.remainingAmount);
+                final totalLent = activeDebts
+                    .where((d) => d.type == DebtType.lend)
+                    .fold(0.0, (sum, debt) => sum + debt.remainingAmount);
+                final totalOverdue = activeDebts
+                    .where((d) => d.isOverdue)
+                    .fold(0.0, (sum, debt) => sum + debt.remainingAmount);
+                final totalActive = activeDebts.fold(
+                    0.0, (sum, debt) => sum + debt.remainingAmount);
 
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Column(
+                    children: [
+                      Row(
                         children: [
                           Expanded(
                             child: _buildSummaryCard(
@@ -93,54 +72,78 @@ class _DebtScreenState extends State<DebtScreen> {
                           ),
                         ],
                       ),
-                    ).animate(delay: 200.ms).fadeIn(duration: 600.ms);
-                  }
-                  return const SizedBox();
-                },
-              ),
-              const SizedBox(height: 12),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildSummaryCard(
+                              context,
+                              'Total Overdue',
+                              totalOverdue,
+                              Colors.deepOrange,
+                              Icons.warning_amber_rounded,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildSummaryCard(
+                              context,
+                              'Total Active',
+                              totalActive,
+                              Colors.blue,
+                              Icons.pending_actions,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ).animate(delay: 200.ms).fadeIn(duration: 600.ms);
+              }
+              return const SizedBox();
+            },
+          ),
+          const SizedBox(height: 12),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: _buildFilterBar(),
               ),
               const SizedBox(height: 8),
-              Expanded(
-                child: BlocBuilder<DebtCubit, DebtState>(
-                  builder: (context, state) {
-                    if (state is DebtLoading) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
+          Expanded(
+            child: BlocBuilder<DebtCubit, DebtState>(
+              builder: (context, state) {
+                if (state is DebtLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-                    if (state is DebtError) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.error_outline,
-                                size: 64, color: Colors.red[300]),
-                            const SizedBox(height: 16),
-                            const Text('Error loading debts'),
-                            const SizedBox(height: 8),
-                            Text(state.message),
-                          ],
-                        ),
-                      );
-                    }
+                if (state is DebtError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error_outline,
+                            size: 64, color: Colors.red[300]),
+                        const SizedBox(height: 16),
+                        const Text('Error loading debts'),
+                        const SizedBox(height: 8),
+                        Text(state.message),
+                      ],
+                    ),
+                  );
+                }
 
-                    if (state is DebtLoaded) {
-                      if (state.debts.isEmpty) {
-                        return _buildEmptyState(context);
-                      }
-                      return _buildDebtsList(context, state.debts);
-                    }
+                if (state is DebtLoaded) {
+                  if (state.debts.isEmpty) {
+                    return _buildEmptyState(context);
+                  }
+                  return _buildDebtsList(context, state.debts);
+                }
 
-                    return const SizedBox();
-                  },
-                ),
-              ),
-            ],
+                return const SizedBox();
+              },
+            ),
           ),
-        ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddDebtModal(context),

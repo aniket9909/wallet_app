@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 class SettingsSection extends StatelessWidget {
   final String title;
   final List<SettingsTile> items;
+  final Widget? child;
 
   const SettingsSection({
     super.key,
     required this.title,
-    required this.items,
+    this.items = const [],
+    this.child,
   });
 
   @override
@@ -38,7 +40,8 @@ class SettingsSection extends StatelessWidget {
               ),
             ],
           ),
-          child: Column(
+          child: child ??
+              Column(
             children: items.asMap().entries.map((entry) {
               final index = entry.key;
               final item = entry.value;

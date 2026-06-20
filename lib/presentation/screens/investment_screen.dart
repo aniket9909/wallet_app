@@ -13,45 +13,10 @@ class InvestmentScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Theme.of(context).colorScheme.primary.withOpacity(0.05),
-              Theme.of(context).colorScheme.secondary.withOpacity(0.05),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Text(
-                      'Investments',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () {
-                        _showAddInvestmentModal(context);
-                      },
-                      icon: const Icon(Icons.add_circle_outline),
-                      iconSize: 28,
-                    ),
-                  ],
-                ).animate().fadeIn(duration: 400.ms),
-              ),
-
-              // Summary Cards
-              BlocBuilder<InvestmentCubit, InvestmentState>(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          BlocBuilder<InvestmentCubit, InvestmentState>(
                 builder: (context, state) {
                   if (state is InvestmentLoaded) {
                     final totalInvested = state.investments
@@ -64,7 +29,7 @@ class InvestmentScreen extends StatelessWidget {
                         : 0.0;
 
                     return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                       child: Column(
                         children: [
                           Row(
@@ -100,57 +65,53 @@ class InvestmentScreen extends StatelessWidget {
                 },
               ),
 
-              const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          Expanded(
+            child: BlocBuilder<InvestmentCubit, InvestmentState>(
+              builder: (context, state) {
+                if (state is InvestmentLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-              // Investments List
-              Expanded(
-                child: BlocBuilder<InvestmentCubit, InvestmentState>(
-                  builder: (context, state) {
-                    if (state is InvestmentLoading) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
+                if (state is InvestmentError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                        const SizedBox(height: 16),
+                        const Text('Error loading investments'),
+                        const SizedBox(height: 8),
+                        Text(state.message),
+                      ],
+                    ),
+                  );
+                }
 
-                    if (state is InvestmentError) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
-                            const SizedBox(height: 16),
-                            const Text('Error loading investments'),
-                            const SizedBox(height: 8),
-                            Text(state.message),
-                          ],
-                        ),
+                if (state is InvestmentLoaded) {
+                  if (state.investments.isEmpty) {
+                    return _buildEmptyState(context);
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: state.investments.length,
+                    itemBuilder: (context, index) {
+                      final investment = state.investments[index];
+                      return InvestmentCard(
+                        investment: investment,
+                        onTap: () => _showInvestmentDetails(context, investment),
+                        index: index,
                       );
-                    }
+                    },
+                  );
+                }
 
-                    if (state is InvestmentLoaded) {
-                      if (state.investments.isEmpty) {
-                        return _buildEmptyState(context);
-                      }
-
-                      return ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: state.investments.length,
-                        itemBuilder: (context, index) {
-                          final investment = state.investments[index];
-                          return InvestmentCard(
-                            investment: investment,
-                            onTap: () => _showInvestmentDetails(context, investment),
-                            index: index,
-                          );
-                        },
-                      );
-                    }
-
-                    return const SizedBox();
-                  },
-                ),
-              ),
-            ],
+                return const SizedBox();
+              },
+            ),
           ),
-        ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
