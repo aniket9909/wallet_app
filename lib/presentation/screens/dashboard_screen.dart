@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../logic/cubits/wallet_cubit.dart';
-import '../../logic/cubits/account_cubit.dart';
 import '../../logic/cubits/transaction_cubit.dart';
 import '../../logic/cubits/partial_transaction_cubit.dart';
-import '../../data/services/sms_transaction_service.dart';
 import '../../data/models/partial_transaction_model.dart';
 import '../../data/models/transaction_model_new.dart';
 import '../../routes/app_routes.dart';
@@ -21,41 +19,10 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final _smsService = SmsTransactionService();
-  bool _smsCheckedThisSession = false;
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _maybeCheckSms();
     _checkTodayUnseenPartials();
-  }
-
-  Future<void> _maybeCheckSms() async {
-    debugPrint('maybeCheckSms called');
-    if (_smsCheckedThisSession) return;
-    _smsCheckedThisSession = true;
-
-    final accountState = context.read<AccountCubit>().state;
-    if (accountState is! AccountLoaded) return;
-
-    final partials =
-        await _smsService.readPartialTransactionsFromSms(accountState.accounts);
-    if (!mounted || partials.isEmpty) return;
-
-    // Save partial transactions to Firebase and get their IDs
-    final partialCubit = context.read<PartialTransactionCubit>();
-    final savedPartials = <PartialTransaction>[];
-    for (final partial in partials) {
-      final id = await partialCubit.addPartialTransaction(partial);
-      if (id.isNotEmpty) {
-        savedPartials.add(partial.copyWith(id: id));
-      } else {
-        savedPartials.add(partial);
-      }
-    }
-
-    _showSmsReviewSheet(savedPartials);
   }
 
   void _checkTodayUnseenPartials() {

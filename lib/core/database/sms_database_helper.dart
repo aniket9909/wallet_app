@@ -158,6 +158,18 @@ class SmsDatabaseHelper {
     return result.isNotEmpty;
   }
 
+  Future<SmsMessageModel?> findByBodyAndDate(String body, DateTime date) async {
+    final db = await database;
+    final result = await db.query(
+      'sms_messages',
+      where: 'body = ? AND date = ?',
+      whereArgs: [body, date.millisecondsSinceEpoch],
+      limit: 1,
+    );
+    if (result.isEmpty) return null;
+    return SmsMessageModel.fromMap(result.first);
+  }
+
   Future<List<SmsMessageModel>> getCreditDebitSms() async {
     final db = await database;
     const orderBy = 'date DESC';

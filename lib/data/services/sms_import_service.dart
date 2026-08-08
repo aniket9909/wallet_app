@@ -40,17 +40,17 @@ class SmsImportService {
     return result.isGranted;
   }
 
-  /// Saves SMS if it contains debit/credit transaction keywords.
-  Future<bool> saveIfTransactionSms({
+  /// Saves SMS if debit/credit. Returns existing or newly saved message; null if not a txn.
+  Future<SmsMessageModel?> saveIfTransactionSms({
     required String body,
     required String address,
     required DateTime date,
   }) async {
     final detection = SmsDetectionUtil.detectCreditDebit(body);
-    if (detection == null) return false;
+    if (detection == null) return null;
 
-    final exists = await _repository.existsByBodyAndDate(body, date);
-    if (exists) return false;
+    final existing = await _repository.findByBodyAndDate(body, date);
+    if (existing != null) return existing;
 
     final sms = SmsMessageModel(
       body: body,
@@ -63,11 +63,31 @@ class SmsImportService {
       transactionType: detection.transactionType,
     );
 
-    await _repository.saveSms(sms);
+    final id = await _repository.saveSms(sms);
+    final saved = sms.copyWith(id: id);
     try {
-      await _repository.syncToFirebase(sms);
+      await _repository.syncToFirebase(saved);
     } catch (_) {}
-    return true;
+    return saved;
+  }
+
+  Future<bool> canDrawOverlays() async {
+    if (!Platform.isAndroid) return false;
+    return await _channel.invokeMethod<bool>('canDrawOverlays') ?? false;
+  }
+
+  Future<void> requestOverlayPermission() async {
+    if (!Platform.isAndroid) return;
+    await _channel.invokeMethod<bool>('requestOverlayPermission');
+  }
+
+  Future<Map<String, dynamic>?> getPendingSmsSync() async {
+    if (!Platform.isAndroid) return null;
+    final result = await _channel.invokeMethod<dynamic>('getPendingSmsSync');
+    if (result is Map) {
+      return Map<String, dynamic>.from(result);
+    }
+    return null;
   }
 
   /// Reads inbox via platform channel and imports debit/credit SMS only.
@@ -78,10 +98,7 @@ class SmsImportService {
 
     final hasPerm = await hasSmsPermission();
     if (!hasPerm) {
-      final granted = await requestSmsPermission();
-      if (!granted) {
-        return const SmsImportResult(scanned: 0, imported: 0, skipped: 0);
-      }
+      return const SmsImportResult(scanned: 0, imported: 0, skipped: 0);
     }
 
     final smsJsonString = await _channel.invokeMethod<String>('readSms');

@@ -98,6 +98,14 @@ class SmsRepository {
     }
   }
 
+  Future<SmsMessageModel?> findByBodyAndDate(String body, DateTime date) async {
+    try {
+      return await _dbHelper.findByBodyAndDate(body, date);
+    } catch (e) {
+      return null;
+    }
+  }
+
   Future<List<SmsMessageModel>> getCreditDebitSms() async {
     try {
       return await _dbHelper.getCreditDebitSms();

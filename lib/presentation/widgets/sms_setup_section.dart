@@ -1,8 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../logic/cubits/sms_cubit.dart';
 import '../../data/models/sms_message_model.dart';
-import '../screens/sms_messages_screen.dart';
+import '../../data/repositories/sms_repository.dart';
+import '../../data/services/sms_coordinator_service.dart';
+import '../../data/services/sms_import_service.dart';
+import '../../routes/app_routes.dart';
 
 class SmsSetupSection extends StatefulWidget {
   const SmsSetupSection({super.key});
@@ -11,13 +17,57 @@ class SmsSetupSection extends StatefulWidget {
   State<SmsSetupSection> createState() => _SmsSetupSectionState();
 }
 
-class _SmsSetupSectionState extends State<SmsSetupSection> {
+class _SmsSetupSectionState extends State<SmsSetupSection> with WidgetsBindingObserver {
   bool _isScanning = false;
+  bool _isPermanentlyDenied = false;
+  bool _canDrawOverlays = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     context.read<SmsCubit>().loadAllSms();
+    _refreshPermissionStatus();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshPermissionStatus();
+    }
+  }
+
+  Future<void> _refreshPermissionStatus() async {
+    if (!Platform.isAndroid) return;
+    final status = await Permission.sms.status;
+    final canOverlay = await _checkOverlay();
+    if (!mounted) return;
+    setState(() {
+      _isPermanentlyDenied = status.isPermanentlyDenied;
+      _canDrawOverlays = canOverlay;
+    });
+  }
+
+  Future<bool> _checkOverlay() async {
+    try {
+      final repo = context.read<SmsRepository>();
+      return await SmsImportService(repo).canDrawOverlays();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _requestOverlayPermission() async {
+    try {
+      final repo = context.read<SmsRepository>();
+      await SmsImportService(repo).requestOverlayPermission();
+    } catch (_) {}
   }
 
   Future<void> _scanInbox() async {
@@ -30,8 +80,18 @@ class _SmsSetupSectionState extends State<SmsSetupSection> {
     if (result == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Failed to scan SMS. Check permissions.'),
+          content: Text('Failed to scan SMS. Enable permission in Settings below.'),
           backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (result.scanned == 0 && result.imported == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('SMS permission required. Enable it below to scan inbox.'),
+          backgroundColor: Colors.orange,
         ),
       );
       return;
@@ -49,17 +109,52 @@ class _SmsSetupSectionState extends State<SmsSetupSection> {
 
   Future<void> _requestPermission() async {
     final granted = await context.read<SmsCubit>().requestPermission();
+    await _refreshPermissionStatus();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          granted
-              ? 'SMS permission granted'
-              : 'SMS permission denied. Enable in app settings.',
+
+    if (granted) {
+      await context.read<SmsCoordinatorService>().onPermissionGranted();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('SMS permission granted'),
+          backgroundColor: Colors.green,
         ),
-        backgroundColor: granted ? Colors.green : Colors.orange,
-      ),
-    );
+      );
+      return;
+    }
+
+    final status = await Permission.sms.status;
+    if (!mounted) return;
+
+    if (status.isPermanentlyDenied) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Permission blocked. Open system settings to enable SMS access.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('SMS permission denied'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
+  Future<void> _openSystemSettings() async {
+    await openAppSettings();
+    await Future.delayed(const Duration(milliseconds: 500));
+    await context.read<SmsCubit>().loadAllSms();
+    await _refreshPermissionStatus();
+    if (!mounted) return;
+
+    final hasPermission = context.read<SmsCubit>().state is SmsLoaded &&
+        (context.read<SmsCubit>().state as SmsLoaded).smsPermissionGranted;
+    if (hasPermission) {
+      await context.read<SmsCoordinatorService>().onPermissionGranted();
+    }
   }
 
   @override
@@ -113,7 +208,9 @@ class _SmsSetupSectionState extends State<SmsSetupSection> {
                             Text(
                               hasPermission
                                   ? 'Reads debit/credit bank SMS automatically'
-                                  : 'Permission required to read bank SMS',
+                                  : _isPermanentlyDenied
+                                      ? 'Enable SMS access in system settings'
+                                      : 'Grant permission to read bank SMS',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey[600],
@@ -145,15 +242,26 @@ class _SmsSetupSectionState extends State<SmsSetupSection> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  if (!hasPermission)
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _requestPermission,
-                        icon: const Icon(Icons.security),
-                        label: const Text('Enable SMS Permission'),
+                  if (!hasPermission) ...[
+                    if (_isPermanentlyDenied)
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _openSystemSettings,
+                          icon: const Icon(Icons.settings),
+                          label: const Text('Open System Settings'),
+                        ),
+                      )
+                    else
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _requestPermission,
+                          icon: const Icon(Icons.security),
+                          label: const Text('Enable SMS Permission'),
+                        ),
                       ),
-                    ),
+                  ],
                   if (hasPermission) ...[
                     SizedBox(
                       width: double.infinity,
@@ -176,6 +284,75 @@ class _SmsSetupSectionState extends State<SmsSetupSection> {
                       'Imports debit/credit SMS. Tap a message to sync amount to an account.',
                       style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                     ),
+                    const SizedBox(height: 16),
+                    const Divider(height: 1),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.picture_in_picture_alt_outlined,
+                          color: _canDrawOverlays ? Colors.green : Colors.orange,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Popup over other apps',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _canDrawOverlays
+                                    ? 'Truecaller-style popup when bank SMS arrives'
+                                    : 'Required to show SMS popup on home screen',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _canDrawOverlays
+                                ? Colors.green.withOpacity(0.1)
+                                : Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _canDrawOverlays ? 'On' : 'Off',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color:
+                                  _canDrawOverlays ? Colors.green : Colors.orange,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (!_canDrawOverlays) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _requestOverlayPermission,
+                          icon: const Icon(Icons.open_in_new),
+                          label: const Text('Enable Display Over Apps'),
+                        ),
+                      ),
+                    ],
                   ],
                 ],
               ),
@@ -250,12 +427,7 @@ class _SmsSetupSectionState extends State<SmsSetupSection> {
                 ],
               ),
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const SmsMessagesScreen(),
-                  ),
-                );
+                Navigator.pushNamed(context, AppRoutes.smsMessages);
               },
             ),
           ],

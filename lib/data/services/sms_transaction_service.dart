@@ -11,16 +11,11 @@ import '../models/transaction_model_new.dart';
 class SmsTransactionService {
   static const MethodChannel _channel = MethodChannel('com.aniket.ewallet/sms');
 
-  Future<bool> _ensurePermissions() async {
+  Future<bool> _hasPermission() async {
     if (!Platform.isAndroid) return false;
     final status = await Permission.sms.status;
-    if (status.isGranted) {
-      // Also check via platform channel
-      final hasPerm = await _channel.invokeMethod<bool>('checkPermission') ?? false;
-      return hasPerm;
-    }
-    final result = await Permission.sms.request();
-    return result.isGranted;
+    if (!status.isGranted) return false;
+    return await _channel.invokeMethod<bool>('checkPermission') ?? false;
   }
 
   Future<List<PartialTransaction>> readPartialTransactionsFromSms(
@@ -29,7 +24,7 @@ class SmsTransactionService {
     print('readPartialTransactionsFromSms called');
     if (!Platform.isAndroid) return [];
     
-    final hasPerm = await _ensurePermissions();
+    final hasPerm = await _hasPermission();
     if (!hasPerm) return [];
 
     try {

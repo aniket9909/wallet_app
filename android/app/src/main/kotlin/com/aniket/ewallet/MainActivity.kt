@@ -2,115 +2,190 @@ package com.aniket.ewallet
 
 import android.Manifest
 import android.content.ContentResolver
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.Cursor
 import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
 import android.provider.Telephony
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodChannel
 import org.json.JSONArray
 import org.json.JSONObject
 
-class MainActivity: FlutterActivity() {
+class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.aniket.ewallet/sms"
     private val EVENT_CHANNEL = "com.aniket.ewallet/sms_events"
     private val SMS_PERMISSION_CODE = 100
     private val TAG = "MainActivity"
-    
+
+    private var methodChannel: MethodChannel? = null
+    private var pendingSyncPayload: Map<String, Any?>? = null
+
     companion object {
         @Volatile
         var eventSink: EventChannel.EventSink? = null
             private set
-        
+
+        @Volatile
+        var isInForeground: Boolean = false
+            private set
+
         fun setEventSink(sink: EventChannel.EventSink?) {
             val TAG = "MainActivity"
-            Log.d(TAG, "========== SETTING EVENT SINK ==========")
-            Log.d(TAG, "Previous eventSink: ${eventSink != null}")
-            Log.d(TAG, "New eventSink: ${sink != null}")
+            Log.d(TAG, "Setting eventSink: ${sink != null}")
             eventSink = sink
-            Log.d(TAG, "EventSink set successfully: ${eventSink != null}")
-            Log.d(TAG, "========================================")
         }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        captureSyncIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        captureSyncIntent(intent)
+        deliverPendingSyncIfReady()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        isInForeground = true
+        deliverPendingSyncIfReady()
+    }
+
+    override fun onPause() {
+        isInForeground = false
+        super.onPause()
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        Log.d(TAG, "========== CONFIGURING FLUTTER ENGINE ==========")
-        
-        // MethodChannel for reading SMS
-        Log.d(TAG, "Setting up MethodChannel: $CHANNEL")
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
-            Log.d(TAG, "MethodChannel called: ${call.method}")
+        Log.d(TAG, "Configuring Flutter engine")
+
+        methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        methodChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "readSms" -> {
-                    Log.d(TAG, "readSms method called")
                     if (checkSmsPermission()) {
-                        Log.d(TAG, "SMS permission granted, reading SMS...")
-                        val smsList = readSmsMessages()
-                        result.success(smsList)
+                        result.success(readSmsMessages())
                     } else {
-                        Log.d(TAG, "SMS permission not granted, requesting...")
                         requestSmsPermission()
                         result.error("PERMISSION_DENIED", "SMS permission not granted", null)
                     }
                 }
                 "checkPermission" -> {
-                    Log.d(TAG, "checkPermission method called")
-                    val hasPermission = checkSmsPermission()
-                    Log.d(TAG, "Permission check result: $hasPermission")
-                    result.success(hasPermission)
+                    result.success(checkSmsPermission())
                 }
-                else -> {
-                    Log.d(TAG, "Unknown method: ${call.method}")
-                    result.notImplemented()
+                "canDrawOverlays" -> {
+                    result.success(Settings.canDrawOverlays(this))
                 }
+                "requestOverlayPermission" -> {
+                    openOverlaySettings()
+                    result.success(true)
+                }
+                "getPendingSmsSync" -> {
+                    val payload = pendingSyncPayload
+                    pendingSyncPayload = null
+                    result.success(payload)
+                }
+                else -> result.notImplemented()
             }
         }
-        
-        // EventChannel for real-time SMS events
-        Log.d(TAG, "Setting up EventChannel: $EVENT_CHANNEL")
+
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, EVENT_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-                    Log.d(TAG, "========== EVENT CHANNEL ON LISTEN ==========")
-                    Log.d(TAG, "Arguments: $arguments")
-                    Log.d(TAG, "Events sink: ${events != null}")
                     setEventSink(events)
-                    Log.d(TAG, "EventChannel listener registered successfully")
-                    Log.d(TAG, "==============================================")
                 }
 
                 override fun onCancel(arguments: Any?) {
-                    Log.d(TAG, "========== EVENT CHANNEL ON CANCEL ==========")
-                    Log.d(TAG, "Arguments: $arguments")
                     setEventSink(null)
-                    Log.d(TAG, "EventChannel listener cancelled")
-                    Log.d(TAG, "============================================")
                 }
-            }
+            },
         )
-        
-        Log.d(TAG, "Flutter engine configuration completed")
-        Log.d(TAG, "==========================================")
+    }
+
+    private fun captureSyncIntent(intent: Intent?) {
+        if (intent == null) return
+        if (!intent.getBooleanExtra(SmsOverlayActivity.EXTRA_OPEN_SYNC, false)) return
+
+        pendingSyncPayload = mapOf(
+            "body" to intent.getStringExtra(SmsOverlayActivity.EXTRA_BODY),
+            "address" to intent.getStringExtra(SmsOverlayActivity.EXTRA_ADDRESS),
+            "date" to intent.getLongExtra(SmsOverlayActivity.EXTRA_DATE, System.currentTimeMillis()),
+            "amount" to intent.getDoubleExtra(SmsOverlayActivity.EXTRA_AMOUNT, 0.0),
+            "type" to intent.getStringExtra(SmsOverlayActivity.EXTRA_TYPE),
+            "openSync" to true,
+        )
+
+        // Clear so we don't re-process on configuration changes alone.
+        intent.removeExtra(SmsOverlayActivity.EXTRA_OPEN_SYNC)
+    }
+
+    private fun deliverPendingSyncIfReady() {
+        val payload = pendingSyncPayload ?: return
+        val channel = methodChannel ?: return
+        try {
+            channel.invokeMethod(
+                "onSmsSyncRequest",
+                payload,
+                object : MethodChannel.Result {
+                    override fun success(result: Any?) {
+                        // Cleared only after Dart acknowledges.
+                        if (pendingSyncPayload == payload) {
+                            pendingSyncPayload = null
+                        }
+                    }
+
+                    override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
+                        Log.w(TAG, "onSmsSyncRequest error: $errorCode $errorMessage")
+                    }
+
+                    override fun notImplemented() {
+                        Log.w(TAG, "onSmsSyncRequest not implemented on Dart side")
+                    }
+                },
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to deliver sync payload: ${e.message}", e)
+        }
+    }
+
+    private fun openOverlaySettings() {
+        val intent = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:$packageName"),
+        )
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
     }
 
     private fun checkSmsPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
             this,
-            Manifest.permission.READ_SMS
+            Manifest.permission.READ_SMS,
         ) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun requestSmsPermission() {
+        val permissions = mutableListOf(Manifest.permission.READ_SMS)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
         ActivityCompat.requestPermissions(
             this,
-            arrayOf(Manifest.permission.READ_SMS),
-            SMS_PERMISSION_CODE
+            permissions.toTypedArray(),
+            SMS_PERMISSION_CODE,
         )
     }
 
@@ -124,11 +199,11 @@ class MainActivity: FlutterActivity() {
                 Telephony.Sms._ID,
                 Telephony.Sms.BODY,
                 Telephony.Sms.DATE,
-                Telephony.Sms.ADDRESS
+                Telephony.Sms.ADDRESS,
             ),
             null,
             null,
-            "${Telephony.Sms.DATE} DESC"
+            "${Telephony.Sms.DATE} DESC",
         )
 
         cursor?.use {
