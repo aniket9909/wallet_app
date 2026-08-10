@@ -122,6 +122,12 @@ class SavingsGoalCubit extends Cubit<SavingsGoalState> {
     }
   }
 
+  void reset() {
+    _goalsSubscription?.cancel();
+    _goalsSubscription = null;
+    emit(SavingsGoalInitial());
+  }
+
   @override
   Future<void> close() {
     _goalsSubscription?.cancel();

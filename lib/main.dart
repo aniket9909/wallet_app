@@ -57,31 +57,6 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _smsCoordinator = SmsCoordinatorService(navigatorKey: navigatorKey);
-    _smsCoordinator.startListenerIfPermitted();
-    _syncLocalSmsToFirebase();
-  }
-
-  Future<void> _syncLocalSmsToFirebase() async {
-    print('========== SYNCING LOCAL SMS TO FIREBASE ==========');
-    // Wait for widget tree to be ready
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        final context = navigatorKey.currentContext;
-        if (context != null) {
-          final smsRepo = context.read<SmsRepository>();
-          final allSms = await smsRepo.getAllSms();
-          print('Found ${allSms.length} local SMS messages to sync');
-          
-          if (allSms.isNotEmpty) {
-            await smsRepo.syncAllToFirebase(allSms);
-            print('All SMS messages synced to Firebase');
-          }
-        }
-      } catch (e) {
-        print('Error syncing local SMS to Firebase: $e');
-      }
-      print('==================================================');
-    });
   }
 
   @override
@@ -156,52 +131,52 @@ class _MyAppState extends State<MyApp> {
           BlocProvider<WalletCubit>(
             create: (context) => WalletCubit(
               context.read<WalletRepository>(),
-            )..loadWallet(),
+            ),
           ),
           BlocProvider<AccountCubit>(
             create: (context) => AccountCubit(
               context.read<AccountRepository>(),
-            )..loadAccounts(),
+            ),
           ),
           BlocProvider<TransactionCubit>(
             create: (context) => TransactionCubit(
               context.read<TransactionRepository>(),
-            )..loadTransactions(),
+            ),
           ),
           BlocProvider<SavingsGoalCubit>(
             create: (context) => SavingsGoalCubit(
               context.read<SavingsGoalRepository>(),
-            )..loadGoals(),
+            ),
           ),
           BlocProvider<SettingsCubit>(
             create: (context) => SettingsCubit(
               context.read<SettingsRepository>(),
-            )..loadSettings(),
+            ),
           ),
           BlocProvider<DebtCubit>(
             create: (context) => DebtCubit(
               context.read<DebtRepository>(),
-            )..loadDebts(),
+            ),
           ),
           BlocProvider<InvestmentCubit>(
             create: (context) => InvestmentCubit(
               context.read<InvestmentRepository>(),
-            )..loadInvestments(),
+            ),
           ),
           BlocProvider<PartialTransactionCubit>(
             create: (context) => PartialTransactionCubit(
               context.read<PartialTransactionRepository>(),
-            )..loadPartialTransactions(),
+            ),
           ),
           BlocProvider<SmsCubit>(
             create: (context) => SmsCubit(
               context.read<SmsRepository>(),
-            )..loadAllSms(),
+            ),
           ),
           BlocProvider<MoneyPlanCubit>(
             create: (context) => MoneyPlanCubit(
               context.read<MoneyPlanRepository>(),
-            )..loadPlan(),
+            ),
           ),
         ],
         child: BlocBuilder<SettingsCubit, SettingsState>(

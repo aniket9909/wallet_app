@@ -105,6 +105,12 @@ class InvestmentCubit extends Cubit<InvestmentState> {
     }
   }
 
+  void reset() {
+    _investmentsSubscription?.cancel();
+    _investmentsSubscription = null;
+    emit(InvestmentInitial());
+  }
+
   @override
   Future<void> close() {
     _investmentsSubscription?.cancel();

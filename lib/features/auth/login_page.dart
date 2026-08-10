@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../data/auth_repository.dart' as auth_repo;
 import '../../routes/app_routes.dart';
+import '../../core/utils/auth_bootstrap.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -41,8 +42,18 @@ class _LoginPageState extends State<LoginPage> {
         _passwordController.text,
       );
 
-      if (mounted) {
+      if (!mounted) return;
+
+      final ok = await AuthBootstrap.setup(context);
+      if (!mounted) return;
+
+      if (ok) {
         Navigator.pushReplacementNamed(context, AppRoutes.home);
+      } else {
+        setState(() {
+          _errorMessage = 'Login succeeded but could not load your data.';
+          _isLoading = false;
+        });
       }
     } on FirebaseAuthException catch (e) {
       setState(() {
@@ -66,8 +77,18 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await auth_repo.AuthRepository().continueWithGoogle();
 
-      if (mounted) {
+      if (!mounted) return;
+
+      final ok = await AuthBootstrap.setup(context);
+      if (!mounted) return;
+
+      if (ok) {
         Navigator.pushReplacementNamed(context, AppRoutes.home);
+      } else {
+        setState(() {
+          _errorMessage = 'Sign-in succeeded but could not load your data.';
+          _isLoading = false;
+        });
       }
     } on FirebaseAuthException catch (e) {
       setState(() {

@@ -23,10 +23,19 @@ class FirebaseRealtimeService {
 
   String? get userId => _auth.currentUser?.uid;
 
-  DatabaseReference get _userRef => _database.ref('users/$userId');
+  bool get isAuthenticated => userId != null;
+
+  DatabaseReference get _userRef {
+    final uid = userId;
+    if (uid == null) {
+      throw StateError('FirebaseRealtimeService: user not authenticated');
+    }
+    return _database.ref('users/$uid');
+  }
 
   // ============ WALLET DATA ============
   Stream<WalletDataModel?> watchWalletData() {
+    if (!isAuthenticated) return Stream.value(null);
     return _userRef.child('wallet').onValue.map((event) {
       if (event.snapshot.value == null) return null;
       return WalletDataModel.fromJson(
@@ -40,6 +49,7 @@ class FirebaseRealtimeService {
 
   // ============ ACCOUNTS ============
   Stream<List<AccountModel>> watchAccounts() {
+    if (!isAuthenticated) return Stream.value([]);
     return _userRef.child('accounts').onValue.map((event) {
       if (event.snapshot.value == null) return [];
       final data = event.snapshot.value as Map<dynamic, dynamic>;
@@ -64,6 +74,7 @@ class FirebaseRealtimeService {
 
   // ============ TRANSACTIONS ============
   Stream<List<TransactionModelNew>> watchTransactions() {
+    if (!isAuthenticated) return Stream.value([]);
     return _userRef.child('transactions').onValue.map((event) {
       if (event.snapshot.value == null) return [];
       final data = event.snapshot.value as Map<dynamic, dynamic>;
@@ -167,6 +178,7 @@ class FirebaseRealtimeService {
 
   // ============ SAVINGS GOALS ============
   Stream<List<SavingsGoalModel>> watchSavingsGoals() {
+    if (!isAuthenticated) return Stream.value([]);
     return _userRef.child('goals').onValue.map((event) {
       if (event.snapshot.value == null) return [];
       final data = event.snapshot.value as Map<dynamic, dynamic>;
@@ -191,6 +203,18 @@ class FirebaseRealtimeService {
 
   // ============ SETTINGS ============
   Stream<SettingsModel> watchSettings() {
+    if (!isAuthenticated) {
+      return Stream.value(
+        SettingsModel(
+          notificationsEnabled: true,
+          expenseTypes: const [
+            'Food', 'Bills', 'Shopping', 'Travel',
+            'Entertainment', 'Health', 'Other',
+          ],
+          profile: const UserProfile(name: '', email: ''),
+        ),
+      );
+    }
     return _userRef.child('settings').onValue.map((event) {
       if (event.snapshot.value == null) {
         return SettingsModel(
@@ -213,6 +237,7 @@ class FirebaseRealtimeService {
 
   // ============ DEBTS ============
   Stream<List<DebtModel>> watchDebts() {
+    if (!isAuthenticated) return Stream.value([]);
     return _userRef.child('debts').onValue.map((event) {
       if (event.snapshot.value == null) return [];
       final data = event.snapshot.value as Map<dynamic, dynamic>;
@@ -238,6 +263,7 @@ class FirebaseRealtimeService {
 
   // ============ INVESTMENTS ============
   Stream<List<InvestmentModel>> watchInvestments() {
+    if (!isAuthenticated) return Stream.value([]);
     return _userRef.child('investments').onValue.map((event) {
       if (event.snapshot.value == null) return [];
       final data = event.snapshot.value as Map<dynamic, dynamic>;
@@ -263,6 +289,7 @@ class FirebaseRealtimeService {
 
   // ============ MONEY PLAN ============
   Stream<MoneyPlanModel?> watchMoneyPlan() {
+    if (!isAuthenticated) return Stream.value(null);
     return _userRef.child('money_plan').onValue.map((event) {
       if (event.snapshot.value == null) return null;
       return MoneyPlanModel.fromJson(
@@ -277,9 +304,11 @@ class FirebaseRealtimeService {
 
   // ============ UTILITY METHODS ============
   Future<void> initializeUserData() async {
+    if (!isAuthenticated) return;
+
     final snapshot = await _userRef.get();
+    final user = _auth.currentUser;
     if (!snapshot.exists) {
-      // Create default data for new user
       await _userRef.set({
         'wallet': const WalletDataModel(
           totalBalance: 0,
@@ -290,18 +319,55 @@ class FirebaseRealtimeService {
         ).toJson(),
         'settings': SettingsModel(
           notificationsEnabled: true,
-          expenseTypes: ['Food', 'Bills', 'Shopping', 'Travel', 'Entertainment', 'Health', 'Other'],
+          expenseTypes: const [
+            'Food', 'Bills', 'Shopping', 'Travel',
+            'Entertainment', 'Health', 'Other',
+          ],
           profile: UserProfile(
-            name: _auth.currentUser?.displayName ?? '',
-            email: _auth.currentUser?.email ?? '',
+            name: user?.displayName ?? '',
+            email: user?.email ?? '',
           ),
         ).toJson(),
       });
+      return;
+    }
+
+    // Ensure settings node exists for older accounts.
+    final settingsSnap = await _userRef.child('settings').get();
+    if (!settingsSnap.exists) {
+      await _userRef.child('settings').set(
+        SettingsModel(
+          notificationsEnabled: true,
+          expenseTypes: const [
+            'Food', 'Bills', 'Shopping', 'Travel',
+            'Entertainment', 'Health', 'Other',
+          ],
+          profile: UserProfile(
+            name: user?.displayName ?? '',
+            email: user?.email ?? '',
+          ),
+        ).toJson(),
+      );
+    }
+
+    // Ensure wallet node exists (partial user records).
+    final walletSnap = await _userRef.child('wallet').get();
+    if (!walletSnap.exists) {
+      await _userRef.child('wallet').set(
+        const WalletDataModel(
+          totalBalance: 0,
+          totalIncome: 0,
+          totalExpense: 0,
+          monthlyIncome: 0,
+          monthlyExpense: 0,
+        ).toJson(),
+      );
     }
   }
 
   // ============ PARTIAL TRANSACTIONS ============
   Stream<List<PartialTransaction>> watchPartialTransactions() {
+    if (!isAuthenticated) return Stream.value([]);
     return _userRef.child('partialTransactions').onValue.map((event) {
       if (event.snapshot.value == null) return [];
       final data = event.snapshot.value as Map<dynamic, dynamic>;
@@ -338,6 +404,7 @@ class FirebaseRealtimeService {
 
   // ============ SMS MESSAGES ============
   Stream<List<SmsMessageModel>> watchSmsMessages() {
+    if (!isAuthenticated) return Stream.value([]);
     return _userRef.child('smsMessages').onValue.map((event) {
       if (event.snapshot.value == null) return [];
       final data = event.snapshot.value as Map<dynamic, dynamic>;

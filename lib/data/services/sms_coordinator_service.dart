@@ -220,6 +220,11 @@ class SmsCoordinatorService with WidgetsBindingObserver {
     });
   }
 
+  void stopListener() {
+    _listenerService.stopListening();
+    _isListening = false;
+  }
+
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _channel.setMethodCallHandler(null);

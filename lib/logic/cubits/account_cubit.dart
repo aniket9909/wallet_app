@@ -107,6 +107,12 @@ class AccountCubit extends Cubit<AccountState> {
     }
   }
 
+  void reset() {
+    _accountSubscription?.cancel();
+    _accountSubscription = null;
+    emit(AccountInitial());
+  }
+
   @override
   Future<void> close() {
     _accountSubscription?.cancel();

@@ -122,6 +122,12 @@ class DebtCubit extends Cubit<DebtState> {
     }
   }
 
+  void reset() {
+    _debtsSubscription?.cancel();
+    _debtsSubscription = null;
+    emit(DebtInitial());
+  }
+
   @override
   Future<void> close() {
     _debtsSubscription?.cancel();

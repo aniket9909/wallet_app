@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../routes/app_routes.dart';
 import '../../data/auth_repository.dart' as auth_repo;
+import '../../core/utils/auth_bootstrap.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -47,8 +48,20 @@ class _RegisterPageState extends State<RegisterPage> {
         displayName: _nameController.text.trim(),
       );
 
-      if (mounted) {
+      if (!mounted) return;
+
+      final ok = await AuthBootstrap.setup(context);
+      if (!mounted) return;
+
+      if (ok) {
         Navigator.pushReplacementNamed(context, AppRoutes.home);
+      } else {
+        setState(() {
+          _errorMessage =
+              'Account created but setup failed. Please sign in again.';
+          _isLoading = false;
+        });
+        await FirebaseAuth.instance.signOut();
       }
     } on FirebaseAuthException catch (e) {
       print('error: $e');

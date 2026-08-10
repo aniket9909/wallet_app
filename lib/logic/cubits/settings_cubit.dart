@@ -106,6 +106,12 @@ class SettingsCubit extends Cubit<SettingsState> {
     }
   }
 
+  void reset() {
+    _settingsSubscription?.cancel();
+    _settingsSubscription = null;
+    emit(SettingsInitial());
+  }
+
   @override
   Future<void> close() {
     _settingsSubscription?.cancel();

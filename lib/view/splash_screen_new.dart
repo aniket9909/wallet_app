@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../routes/app_routes.dart';
-import '../data/services/firebase_realtime_service.dart';
+import '../core/utils/auth_bootstrap.dart';
 
 class SplashScreenNew extends StatefulWidget {
   const SplashScreenNew({super.key});
@@ -20,25 +20,31 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
   }
 
   Future<void> _navigateToNextScreen() async {
-    // Wait for 3 seconds
     await Future.delayed(const Duration(seconds: 3));
 
     if (!mounted) return;
 
-    // Check if user is logged in
     final user = FirebaseAuth.instance.currentUser;
 
     if (user != null) {
-      // Initialize user data in Realtime Database
-      await FirebaseRealtimeService().initializeUserData();
-      
-      if (mounted) {
+      final ok = await AuthBootstrap.setup(context);
+      if (!mounted) return;
+      if (ok) {
         Navigator.pushReplacementNamed(context, AppRoutes.home);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not load your wallet. Please sign in again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        await FirebaseAuth.instance.signOut();
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, AppRoutes.login);
+        }
       }
     } else {
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, AppRoutes.login);
-      }
+      Navigator.pushReplacementNamed(context, AppRoutes.login);
     }
   }
 
@@ -47,7 +53,6 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
     return Scaffold(
       body: Stack(
         children: [
-          // Gradient background
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -60,7 +65,6 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
               ),
             ),
           ),
-          // Animated gradient blobs
           Positioned(
             top: -60,
             left: -40,
@@ -75,7 +79,6 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
                 .animate(onPlay: (c) => c.repeat(reverse: true))
                 .moveY(begin: 0, end: -25, duration: 3200.ms),
           ),
-          // Center glass card
           Center(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(28),
@@ -140,7 +143,6 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
                         ),
                       ).animate().fadeIn(duration: 600.ms, delay: 150.ms),
                       const SizedBox(height: 22),
-                      // Progress bar
                       LayoutBuilder(
                         builder: (context, c) {
                           return Container(
@@ -185,7 +187,6 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
               ),
             ),
           ),
-          // Footer
           Positioned(
             bottom: 24,
             left: 0,
@@ -208,7 +209,7 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
             ),
           ),
         ],
-      ),            
+      ),
     );
   }
 
@@ -230,4 +231,3 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
     );
   }
 }
-

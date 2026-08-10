@@ -179,5 +179,9 @@ class SmsCubit extends Cubit<SmsState> {
       emit(SmsError(e.toString()));
     }
   }
+
+  void reset() {
+    emit(SmsInitial());
+  }
 }
 

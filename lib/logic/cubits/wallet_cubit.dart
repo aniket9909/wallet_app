@@ -70,6 +70,12 @@ class WalletCubit extends Cubit<WalletState> {
     }
   }
 
+  void reset() {
+    _walletSubscription?.cancel();
+    _walletSubscription = null;
+    emit(WalletInitial());
+  }
+
   @override
   Future<void> close() {
     _walletSubscription?.cancel();

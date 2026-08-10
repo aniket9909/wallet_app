@@ -133,6 +133,12 @@ class TransactionCubit extends Cubit<TransactionState> {
     return [];
   }
 
+  void reset() {
+    _transactionSubscription?.cancel();
+    _transactionSubscription = null;
+    emit(TransactionInitial());
+  }
+
   @override
   Future<void> close() {
     _transactionSubscription?.cancel();

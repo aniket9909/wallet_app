@@ -100,6 +100,12 @@ class PartialTransactionCubit extends Cubit<PartialTransactionState> {
     }).toList();
   }
 
+  void reset() {
+    _partialSubscription?.cancel();
+    _partialSubscription = null;
+    emit(PartialTransactionInitial());
+  }
+
   @override
   Future<void> close() {
     _partialSubscription?.cancel();

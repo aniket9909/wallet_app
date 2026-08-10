@@ -65,7 +65,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: SafeArea(
           child: BlocBuilder<WalletCubit, WalletState>(
             builder: (context, state) {
-              if (state is WalletLoading) {
+              if (state is WalletLoading || state is WalletInitial) {
                 return const Center(child: CircularProgressIndicator());
               }
 

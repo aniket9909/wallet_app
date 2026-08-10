@@ -318,6 +318,13 @@ class MoneyPlanCubit extends Cubit<MoneyPlanState> {
     });
   }
 
+  void reset() {
+    _subscription?.cancel();
+    _subscription = null;
+    _lastPlan = null;
+    emit(MoneyPlanInitial());
+  }
+
   @override
   Future<void> close() {
     _subscription?.cancel();
