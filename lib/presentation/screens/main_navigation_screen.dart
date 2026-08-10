@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'dashboard_screen.dart';
 import 'accounts_screen.dart';
-import 'savings_hub_screen.dart';
+import 'money_planner/money_planner_screen.dart';
 import 'expense_tracker_screen.dart';
 import 'settings_screen.dart';
 
@@ -19,7 +19,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _screens = const [
     DashboardScreen(),
     AccountsScreen(),
-    SavingsHubScreen(),
+    MoneyPlannerScreen(),
     ExpenseTrackerScreen(),
     SettingsScreen(),
   ];
@@ -75,9 +75,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 label: 'Accounts',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.savings_outlined),
-                activeIcon: Icon(Icons.savings),
-                label: 'Savings',
+                icon: Icon(Icons.pie_chart_outline),
+                activeIcon: Icon(Icons.pie_chart),
+                label: 'Planner',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.receipt_long_outlined),

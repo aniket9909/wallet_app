@@ -2,107 +2,86 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
+import '../../core/utils/sms_detection_util.dart';
+import 'sms_debug_log.dart';
 
 class SmsListenerService {
-  static const EventChannel _eventChannel = EventChannel('com.aniket.ewallet/sms_events');
+  static const EventChannel _eventChannel =
+      EventChannel('com.aniket.ewallet/sms_events');
   StreamSubscription<dynamic>? _subscription;
   Function(String body, String address, DateTime date)? onSmsReceived;
 
   void startListening(Function(String body, String address, DateTime date) onSms) {
-    print('========== SMS LISTENER SERVICE: START LISTENING ==========');
-    
+    SmsDebugLog.info('Flutter SMS listener starting…');
+
     if (!Platform.isAndroid) {
-      print('Not Android platform, returning...');
+      SmsDebugLog.warn('Not Android — listener not started');
       return;
     }
-    
-    print('Platform is Android, setting up listener...');
+
     onSmsReceived = onSms;
-    print('onSmsReceived callback set: ${onSmsReceived != null}');
-    
     _subscription?.cancel();
-    print('Previous subscription cancelled');
-    
-    print('Setting up EventChannel stream listener...');
-    print('EventChannel name: com.aniket.ewallet/sms_events');
-    
+
     try {
       _subscription = _eventChannel.receiveBroadcastStream().listen(
         (dynamic event) {
-          print('========== SMS EVENT RECEIVED IN FLUTTER ==========');
-          print('Raw event type: ${event.runtimeType}');
-          print('Raw event: $event');
-          
+          SmsDebugLog.info('EventChannel got SMS event from Android');
           try {
             final eventString = event as String;
-            print('Event as string: $eventString');
-            
             final smsData = jsonDecode(eventString) as Map<String, dynamic>;
-            print('Parsed SMS data: $smsData');
-            
+
             final body = smsData['body'] as String? ?? '';
             final address = smsData['address'] as String? ?? '';
-            final dateMillis = smsData['date'] as int? ?? DateTime.now().millisecondsSinceEpoch;
+            final kind = smsData['smsKind'] as String? ?? 'text';
+            final dateMillis =
+                smsData['date'] as int? ?? DateTime.now().millisecondsSinceEpoch;
             final date = DateTime.fromMillisecondsSinceEpoch(dateMillis);
-            
-            print('Extracted data:');
-            print('  Body: $body');
-            print('  Address: $address');
-            print('  Date: $date');
-            print('  Body is empty: ${body.isEmpty}');
-            print('  onSmsReceived is null: ${onSmsReceived == null}');
-            
+
+            final detection = SmsDetectionUtil.detectCreditDebit(
+              body,
+              address: address,
+            );
+            SmsDebugLog.smsReceived(
+              address: address,
+              body: body,
+              kind: kind,
+              amount: detection?.amount,
+              txnType: detection?.transactionType,
+              isTxn: detection != null,
+            );
+
             if (body.isNotEmpty && onSmsReceived != null) {
-              print('Calling onSmsReceived callback...');
+              SmsDebugLog.info('Forwarding SMS to coordinator…');
               onSmsReceived!(body, address, date);
-              print('Callback executed successfully');
-            } else {
-              if (body.isEmpty) {
-                print('WARNING: Body is empty, not calling callback');
-              }
-              if (onSmsReceived == null) {
-                print('WARNING: onSmsReceived is null, not calling callback');
-              }
+            } else if (body.isEmpty) {
+              SmsDebugLog.warn('Empty body — not forwarding');
             }
-          } catch (e, stackTrace) {
-            print('ERROR parsing SMS event: $e');
-            print('Stack trace: $stackTrace');
+          } catch (e) {
+            SmsDebugLog.error('Failed to parse SMS event: $e');
           }
-          
-          print('==================================================');
         },
         onError: (error) {
-          print('========== SMS EVENT CHANNEL ERROR ==========');
-          print('Error type: ${error.runtimeType}');
-          print('Error: $error');
-          print('==============================================');
+          SmsDebugLog.error('EventChannel error: $error');
         },
         onDone: () {
-          print('========== SMS EVENT CHANNEL DONE ==========');
-          print('Stream closed');
-          print('===========================================');
+          SmsDebugLog.warn('EventChannel stream closed');
         },
         cancelOnError: false,
       );
-      
-      print('EventChannel stream listener set up successfully');
-      print('Subscription active: ${_subscription != null}');
-    } catch (e, stackTrace) {
-      print('ERROR setting up EventChannel listener: $e');
-      print('Stack trace: $stackTrace');
+      SmsDebugLog.ok('Flutter SMS listener active (waiting for SMS)');
+    } catch (e) {
+      SmsDebugLog.error('Could not start listener: $e');
     }
-    
-    print('==================================================');
   }
 
   void stopListening() {
     _subscription?.cancel();
     _subscription = null;
     onSmsReceived = null;
+    SmsDebugLog.info('Flutter SMS listener stopped');
   }
 
   void dispose() {
     stopListening();
   }
 }
-

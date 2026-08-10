@@ -18,6 +18,7 @@ import 'data/repositories/debt_repository.dart';
 import 'data/repositories/investment_repository.dart';
 import 'data/repositories/partial_transaction_repository.dart';
 import 'data/repositories/sms_repository.dart';
+import 'data/repositories/money_plan_repository.dart';
 
 // Logic Layer
 import 'logic/cubits/wallet_cubit.dart';
@@ -29,6 +30,7 @@ import 'logic/cubits/debt_cubit.dart';
 import 'logic/cubits/investment_cubit.dart';
 import 'logic/cubits/partial_transaction_cubit.dart';
 import 'logic/cubits/sms_cubit.dart';
+import 'logic/cubits/money_plan_cubit.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -140,6 +142,11 @@ class _MyAppState extends State<MyApp> {
             firebaseService: context.read<FirebaseRealtimeService>(),
           ),
         ),
+        RepositoryProvider<MoneyPlanRepository>(
+          create: (context) => MoneyPlanRepository(
+            context.read<FirebaseRealtimeService>(),
+          ),
+        ),
         RepositoryProvider<SmsCoordinatorService>(
           create: (context) => _smsCoordinator,
         ),
@@ -190,6 +197,11 @@ class _MyAppState extends State<MyApp> {
             create: (context) => SmsCubit(
               context.read<SmsRepository>(),
             )..loadAllSms(),
+          ),
+          BlocProvider<MoneyPlanCubit>(
+            create: (context) => MoneyPlanCubit(
+              context.read<MoneyPlanRepository>(),
+            )..loadPlan(),
           ),
         ],
         child: BlocBuilder<SettingsCubit, SettingsState>(

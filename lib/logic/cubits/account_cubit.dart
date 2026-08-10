@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../data/models/account_model.dart';
 import '../../data/repositories/account_repository.dart';
+import '../../data/services/overlay_cache_service.dart';
 
 // States
 abstract class AccountState extends Equatable {
@@ -54,6 +55,7 @@ class AccountCubit extends Cubit<AccountState> {
     _accountSubscription = _repository.watchAccounts().listen(
       (accounts) {
         emit(AccountLoaded(accounts));
+        OverlayCacheService.syncFromState(accounts: accounts);
       },
       onError: (error) {
         emit(AccountError(error.toString()));

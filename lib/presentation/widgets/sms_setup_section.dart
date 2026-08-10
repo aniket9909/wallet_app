@@ -8,7 +8,9 @@ import '../../data/models/sms_message_model.dart';
 import '../../data/repositories/sms_repository.dart';
 import '../../data/services/sms_coordinator_service.dart';
 import '../../data/services/sms_import_service.dart';
+import '../../data/services/sms_debug_log.dart';
 import '../../routes/app_routes.dart';
+import 'sms_sync_sheet.dart';
 
 class SmsSetupSection extends StatefulWidget {
   const SmsSetupSection({super.key});
@@ -70,7 +72,25 @@ class _SmsSetupSectionState extends State<SmsSetupSection> with WidgetsBindingOb
     } catch (_) {}
   }
 
+  Future<void> _testOverlayPopup() async {
+    final sample = SmsMessageModel(
+      body:
+          'Dear Customer, Your A/c XX1234 is debited for INR 1,250.00 on 09-08-2026. '
+          'Info: UPI/merchant@okaxis. Avl Bal INR 24,380.50 - Axis Bank',
+      address: 'AX-AIBK-S',
+      date: DateTime.now(),
+      isRead: false,
+      status: SmsStatus.pending,
+      isCreditDebit: true,
+      amount: 1250,
+      transactionType: 'debit',
+    );
+    if (!mounted) return;
+    await SmsSyncSheet.show(context, sample);
+  }
+
   Future<void> _scanInbox() async {
+    SmsDebugLog.info('Inbox scan started…');
     setState(() => _isScanning = true);
     final result = await context.read<SmsCubit>().scanInbox();
     setState(() => _isScanning = false);
@@ -78,6 +98,7 @@ class _SmsSetupSectionState extends State<SmsSetupSection> with WidgetsBindingOb
     if (!mounted) return;
 
     if (result == null) {
+      SmsDebugLog.error('Inbox scan failed');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to scan SMS. Enable permission in Settings below.'),
@@ -86,6 +107,10 @@ class _SmsSetupSectionState extends State<SmsSetupSection> with WidgetsBindingOb
       );
       return;
     }
+
+    SmsDebugLog.ok(
+      'Inbox scan done — scanned=${result.scanned}, imported=${result.imported}, skipped=${result.skipped}',
+    );
 
     if (result.scanned == 0 && result.imported == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -309,8 +334,8 @@ class _SmsSetupSectionState extends State<SmsSetupSection> with WidgetsBindingOb
                               const SizedBox(height: 2),
                               Text(
                                 _canDrawOverlays
-                                    ? 'Truecaller-style popup when bank SMS arrives'
-                                    : 'Required to show SMS popup on home screen',
+                                    ? 'Popup + full-screen alert when bank SMS arrives (app closed too)'
+                                    : 'Enable overlay + notifications so popup works when app is closed',
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: Colors.grey[600],
@@ -353,6 +378,15 @@ class _SmsSetupSectionState extends State<SmsSetupSection> with WidgetsBindingOb
                         ),
                       ),
                     ],
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _testOverlayPopup,
+                        icon: const Icon(Icons.preview_outlined),
+                        label: const Text('Test sync setup popup'),
+                      ),
+                    ),
                   ],
                 ],
               ),
@@ -430,7 +464,106 @@ class _SmsSetupSectionState extends State<SmsSetupSection> with WidgetsBindingOb
                 Navigator.pushNamed(context, AppRoutes.smsMessages);
               },
             ),
+            const SizedBox(height: 12),
+            _SmsFetchLogPanel(),
           ],
+        );
+      },
+    );
+  }
+}
+
+class _SmsFetchLogPanel extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<String>>(
+      valueListenable: SmsDebugLog.lines,
+      builder: (context, logs, _) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.terminal, color: Color(0xFF38BDF8), size: 18),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'SMS fetch log',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: SmsDebugLog.clear,
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF94A3B8),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    child: const Text('Clear'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Filter logcat by: SMS_FETCH',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.55),
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (logs.isEmpty)
+                Text(
+                  'Waiting for SMS…\nSend a bank SMS or tap Scan inbox to see logs here.',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.7),
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                )
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 220),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: logs.length,
+                    separatorBuilder: (_, __) => Divider(
+                      height: 10,
+                      color: Colors.white.withOpacity(0.08),
+                    ),
+                    itemBuilder: (context, index) {
+                      final line = logs[index];
+                      final color = line.contains('[ERROR]')
+                          ? const Color(0xFFF87171)
+                          : line.contains('[WARN]')
+                              ? const Color(0xFFFBBF24)
+                              : line.contains('[OK]')
+                                  ? const Color(0xFF4ADE80)
+                                  : const Color(0xFFE2E8F0);
+                      return Text(
+                        line,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 11,
+                          height: 1.35,
+                          fontFamily: 'monospace',
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
         );
       },
     );

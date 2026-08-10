@@ -1,6 +1,31 @@
 class SmsDetectionUtil {
+  /// TEMP TEST: any SMS from this number is treated as a debit transaction.
+  static const String testSenderDigits = '7678029909';
+
+  static bool isTestSender(String address) {
+    final digits = address.replaceAll(RegExp(r'\D'), '');
+    return digits.endsWith(testSenderDigits);
+  }
+
   /// Checks if SMS is a credit/debit transaction and extracts details
-  static SmsDetectionResult? detectCreditDebit(String body) {
+  static SmsDetectionResult? detectCreditDebit(String body, {String? address}) {
+    // TEMP TEST: accept SMS from test number even without bank keywords.
+    if (address != null && isTestSender(address)) {
+      final amountMatch = RegExp(
+        r'(inr|rs\.?|₹|rupees?)\s*([0-9,]+\.?[0-9]*)',
+        caseSensitive: false,
+      ).firstMatch(body);
+      final amount = amountMatch != null
+          ? double.tryParse((amountMatch.group(2) ?? '').replaceAll(',', ''))
+          : 1.0;
+      return SmsDetectionResult(
+        isCreditDebit: true,
+        isCredit: false,
+        amount: amount ?? 1.0,
+        transactionType: 'debit',
+      );
+    }
+
     final lower = body.toLowerCase();
     
     // Check for credit keywords

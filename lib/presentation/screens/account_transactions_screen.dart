@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import '../../core/utils/planner_navigation.dart';
 import '../../logic/cubits/transaction_cubit.dart';
 import '../../data/models/transaction_model_new.dart';
 
@@ -183,6 +184,7 @@ class _TxnTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: ListTile(
+        onTap: () => openTransactionDetail(context, transaction),
         leading: CircleAvatar(
           backgroundColor: color.withOpacity(0.12),
           child: Icon(

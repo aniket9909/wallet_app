@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
+import '../../core/utils/planner_navigation.dart';
 import '../../data/models/transaction_model_new.dart';
 
 class TransactionListItem extends StatelessWidget {
@@ -18,6 +19,7 @@ class TransactionListItem extends StatelessWidget {
     final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
     final dateFormat = DateFormat('MMM dd, yyyy');
     final isCredit = transaction.type == TransactionType.credit;
+    final planner = parsePlannerNote(transaction.note);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -28,9 +30,7 @@ class TransactionListItem extends StatelessWidget {
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            // Show transaction details
-          },
+          onTap: () => openTransactionDetail(context, transaction),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -71,11 +71,16 @@ class TransactionListItem extends StatelessWidget {
                             color: Colors.grey[600],
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            transaction.category,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
+                          Flexible(
+                            child: Text(
+                              planner.hasPlanner
+                                  ? '${planner.section} · ${planner.subtype ?? transaction.category}'
+                                  : transaction.category,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -118,14 +123,12 @@ class TransactionListItem extends StatelessWidget {
                         color: isCredit ? Colors.green : Colors.red,
                       ),
                     ),
-                    if (transaction.note != null) ...[
-                      const SizedBox(height: 4),
-                      Icon(
-                        Icons.notes,
-                        size: 16,
-                        color: Colors.grey[400],
-                      ),
-                    ],
+                    const SizedBox(height: 4),
+                    Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: Colors.grey[400],
+                    ),
                   ],
                 ),
               ],

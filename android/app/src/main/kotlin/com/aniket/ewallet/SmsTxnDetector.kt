@@ -18,7 +18,30 @@ object SmsTxnDetector {
         Pattern.CASE_INSENSITIVE,
     )
 
-    fun detect(body: String): SmsTxnDetection? {
+    /** TEMP TEST sender — any SMS from this number is treated as a txn. */
+    private const val TEST_SENDER_SUFFIX = "7678029909"
+
+    fun isTestSender(address: String?): Boolean {
+        if (address.isNullOrBlank()) return false
+        val digits = address.filter { it.isDigit() }
+        return digits.endsWith(TEST_SENDER_SUFFIX)
+    }
+
+    fun detect(body: String, address: String? = null): SmsTxnDetection? {
+        if (isTestSender(address)) {
+            val matcher = amountPattern.matcher(body)
+            val amount = if (matcher.find()) {
+                matcher.group(2)?.replace(",", "")?.toDoubleOrNull() ?: 1.0
+            } else {
+                1.0
+            }
+            return SmsTxnDetection(
+                isCredit = false,
+                amount = amount,
+                transactionType = "debit",
+            )
+        }
+
         val lower = body.lowercase(Locale.US)
 
         val isCredit = lower.contains("credited") ||

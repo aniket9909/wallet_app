@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../core/utils/sms_detection_util.dart';
 import '../models/sms_message_model.dart';
 import '../repositories/sms_repository.dart';
+import 'sms_debug_log.dart';
 
 class SmsImportResult {
   final int scanned;
@@ -46,11 +47,17 @@ class SmsImportService {
     required String address,
     required DateTime date,
   }) async {
-    final detection = SmsDetectionUtil.detectCreditDebit(body);
-    if (detection == null) return null;
+    final detection = SmsDetectionUtil.detectCreditDebit(body, address: address);
+    if (detection == null) {
+      SmsDebugLog.warn('saveIfTransactionSms: not a txn SMS from $address');
+      return null;
+    }
 
     final existing = await _repository.findByBodyAndDate(body, date);
-    if (existing != null) return existing;
+    if (existing != null) {
+      SmsDebugLog.info('Duplicate SMS already stored id=${existing.id}');
+      return existing;
+    }
 
     final sms = SmsMessageModel(
       body: body,
@@ -65,6 +72,9 @@ class SmsImportService {
 
     final id = await _repository.saveSms(sms);
     final saved = sms.copyWith(id: id);
+    SmsDebugLog.ok(
+      'Saved SMS #$id ${detection.transactionType} ₹${detection.amount} from $address',
+    );
     try {
       await _repository.syncToFirebase(saved);
     } catch (_) {}
@@ -79,6 +89,12 @@ class SmsImportService {
   Future<void> requestOverlayPermission() async {
     if (!Platform.isAndroid) return;
     await _channel.invokeMethod<bool>('requestOverlayPermission');
+  }
+
+  /// Shows the native SMS overlay with sample bank SMS (for UI testing).
+  Future<bool> showTestSmsOverlay() async {
+    if (!Platform.isAndroid) return false;
+    return await _channel.invokeMethod<bool>('showTestSmsOverlay') ?? false;
   }
 
   Future<Map<String, dynamic>?> getPendingSmsSync() async {
@@ -107,6 +123,7 @@ class SmsImportService {
     }
 
     final smsList = jsonDecode(smsJsonString) as List;
+    SmsDebugLog.info('Inbox returned ${smsList.length} raw messages');
     var imported = 0;
     var skipped = 0;
 
@@ -115,13 +132,16 @@ class SmsImportService {
       final body = sms['body'] as String? ?? '';
       if (body.isEmpty) continue;
 
-      final detection = SmsDetectionUtil.detectCreditDebit(body);
+      final address = sms['address'] as String? ?? '';
+      final detection = SmsDetectionUtil.detectCreditDebit(body, address: address);
       if (detection == null) {
         skipped++;
         continue;
       }
 
-      final address = sms['address'] as String? ?? '';
+      SmsDebugLog.ok(
+        'Inbox hit ${detection.transactionType} ₹${detection.amount.toStringAsFixed(2)} from $address',
+      );
       final dateMillis = sms['date'] as int? ?? DateTime.now().millisecondsSinceEpoch;
       final date = DateTime.fromMillisecondsSinceEpoch(dateMillis);
 
@@ -145,6 +165,10 @@ class SmsImportService {
       await _repository.saveSms(model);
       imported++;
     }
+
+    SmsDebugLog.ok(
+      'Inbox import finished imported=$imported skipped=$skipped',
+    );
 
     return SmsImportResult(
       scanned: smsList.length,

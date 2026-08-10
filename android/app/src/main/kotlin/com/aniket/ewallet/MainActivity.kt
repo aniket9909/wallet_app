@@ -98,6 +98,28 @@ class MainActivity : FlutterActivity() {
                     pendingSyncPayload = null
                     result.success(payload)
                 }
+                "cacheOverlayData" -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val args = call.arguments as? Map<String, Any?>
+                    val accountsJson = args?.get("accountsJson") as? String ?: "[]"
+                    val categoriesJson = args?.get("categoriesJson") as? String ?: "[]"
+                    val uid = args?.get("uid") as? String
+                    val idToken = args?.get("idToken") as? String
+                    val dbUrl = args?.get("dbUrl") as? String
+                    OverlayFirebaseRepository.saveCache(
+                        this,
+                        accountsJson,
+                        categoriesJson,
+                        uid,
+                        idToken,
+                        dbUrl,
+                    )
+                    result.success(true)
+                }
+                "showTestSmsOverlay" -> {
+                    showTestSmsOverlay()
+                    result.success(true)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -125,6 +147,9 @@ class MainActivity : FlutterActivity() {
             "date" to intent.getLongExtra(SmsOverlayActivity.EXTRA_DATE, System.currentTimeMillis()),
             "amount" to intent.getDoubleExtra(SmsOverlayActivity.EXTRA_AMOUNT, 0.0),
             "type" to intent.getStringExtra(SmsOverlayActivity.EXTRA_TYPE),
+            "account" to intent.getStringExtra(SmsOverlayActivity.EXTRA_ACCOUNT),
+            "category" to intent.getStringExtra(SmsOverlayActivity.EXTRA_CATEGORY),
+            "plannerSection" to intent.getStringExtra(SmsOverlayActivity.EXTRA_PLANNER_SECTION),
             "openSync" to true,
         )
 
@@ -168,6 +193,28 @@ class MainActivity : FlutterActivity() {
         )
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(intent)
+    }
+
+    private fun showTestSmsOverlay() {
+        val sampleBody =
+            "Dear Customer, Your A/c XX1234 is debited for INR 1,250.00 on 09-08-2026. " +
+                "Info: UPI/merchant@okaxis. Avl Bal INR 24,380.50 - Axis Bank"
+        val overlayIntent = Intent(this, SmsOverlayActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+            putExtra(SmsOverlayActivity.EXTRA_BODY, sampleBody)
+            putExtra(SmsOverlayActivity.EXTRA_ADDRESS, "AX-AIBK-S")
+            putExtra(SmsOverlayActivity.EXTRA_DATE, System.currentTimeMillis())
+            putExtra(SmsOverlayActivity.EXTRA_AMOUNT, 1250.0)
+            putExtra(SmsOverlayActivity.EXTRA_TYPE, "debit")
+        }
+        try {
+            startActivity(overlayIntent)
+            Log.d(TAG, "Launched test SmsOverlayActivity")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch test overlay: ${e.message}", e)
+        }
     }
 
     private fun checkSmsPermission(): Boolean {

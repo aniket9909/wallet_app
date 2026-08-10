@@ -9,6 +9,7 @@ import '../models/debt_model.dart';
 import '../models/investment_model.dart';
 import '../models/partial_transaction_model.dart';
 import '../models/sms_message_model.dart';
+import '../models/money_plan_model.dart';
 
 class FirebaseRealtimeService {
   final FirebaseDatabase _database;
@@ -258,6 +259,20 @@ class FirebaseRealtimeService {
 
   Future<void> deleteInvestment(String investmentId) async {
     await _userRef.child('investments/$investmentId').remove();
+  }
+
+  // ============ MONEY PLAN ============
+  Stream<MoneyPlanModel?> watchMoneyPlan() {
+    return _userRef.child('money_plan').onValue.map((event) {
+      if (event.snapshot.value == null) return null;
+      return MoneyPlanModel.fromJson(
+        event.snapshot.value as Map<dynamic, dynamic>,
+      );
+    });
+  }
+
+  Future<void> saveMoneyPlan(MoneyPlanModel plan) async {
+    await _userRef.child('money_plan').set(plan.toJson());
   }
 
   // ============ UTILITY METHODS ============

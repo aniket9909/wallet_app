@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../data/models/settings_model.dart';
 import '../../data/repositories/settings_repository.dart';
+import '../../data/services/overlay_cache_service.dart';
 
 // States
 abstract class SettingsState extends Equatable {
@@ -45,6 +46,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     _settingsSubscription = _repository.watchSettings().listen(
       (settings) {
         emit(SettingsLoaded(settings));
+        OverlayCacheService.syncFromState(settings: settings);
       },
       onError: (error) {
         emit(SettingsError(error.toString()));
