@@ -8,9 +8,10 @@ import 'package:flutter/services.dart';
 import '../models/account_model.dart';
 import '../models/money_plan_model.dart';
 import '../models/settings_model.dart';
+import '../../presentation/widgets/sms_sync_sheet.dart';
 
-/// Pushes Firebase accounts + categories to native SharedPreferences so the
-/// SMS overlay (other apps) can show bank/category pickers offline-first.
+/// Pushes Firebase accounts + planner subtypes to native SharedPreferences so the
+/// SMS overlay can sync directly without opening the app.
 class OverlayCacheService {
   static const MethodChannel _channel = MethodChannel('com.aniket.ewallet/sms');
 
@@ -25,18 +26,11 @@ class OverlayCacheService {
     if (settings != null) {
       categories.addAll(settings.expenseTypes);
     }
-    if (moneyPlan != null) {
-      for (final e in moneyPlan.expenses) {
-        if (e.name.isNotEmpty) categories.add(e.name);
-      }
-      for (final i in moneyPlan.investments) {
-        if (i.name.isNotEmpty) categories.add(i.name);
-      }
-      for (final g in moneyPlan.goals) {
-        if (g.name.isNotEmpty) categories.add(g.name);
-      }
-      for (final d in moneyPlan.debts) {
-        if (d.name.isNotEmpty) categories.add(d.name);
+
+    final subtypesMap = _buildSubtypesMap(moneyPlan);
+    if (settings != null) {
+      for (final section in subtypesMap.keys) {
+        categories.addAll(subtypesMap[section] ?? const []);
       }
     }
 
@@ -68,10 +62,34 @@ class OverlayCacheService {
       await _channel.invokeMethod<bool>('cacheOverlayData', {
         'accountsJson': jsonEncode(accountPayload),
         'categoriesJson': jsonEncode(categories.toList()),
+        'plannerSubtypesJson': jsonEncode(subtypesMap),
         'uid': uid,
         'idToken': idToken,
         'dbUrl': dbUrl,
       });
     } catch (_) {}
+  }
+
+  static Map<String, List<String>> _buildSubtypesMap(MoneyPlanModel? plan) {
+    final map = <String, List<String>>{};
+    for (final entry in SmsSyncSheet.plannerSubtypes.entries) {
+      map[entry.key] = List<String>.from(entry.value);
+    }
+    if (plan == null) return map;
+
+    void merge(String section, Iterable<String> names) {
+      final list = map.putIfAbsent(section, () => <String>[]);
+      for (final name in names) {
+        if (name.isNotEmpty && !list.contains(name)) {
+          list.insert(0, name);
+        }
+      }
+    }
+
+    merge('Essentials', plan.expenses.map((e) => e.name));
+    merge('Investment', plan.investments.map((i) => i.name));
+    merge('Goals', plan.goals.map((g) => g.name));
+    merge('Debt & EMI', plan.debts.map((d) => d.name));
+    return map;
   }
 }

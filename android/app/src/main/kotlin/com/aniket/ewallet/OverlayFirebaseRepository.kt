@@ -19,13 +19,14 @@ data class OverlayAccount(
 
 data class OverlayFirebaseData(
     val accounts: List<OverlayAccount>,
-    val categories: List<String>,
+    val plannerSections: List<String>,
+    val subtypesBySection: Map<String, List<String>>,
     val loggedIn: Boolean,
     val source: String,
 )
 
 /**
- * Loads bank accounts + categories for the SMS overlay.
+ * Loads bank accounts + planner categories for the SMS overlay.
  *
  * Primary: SharedPreferences cache written by Flutter from Firebase.
  * Refresh: Firebase Realtime Database REST (same paths as Flutter) when a
@@ -33,40 +34,24 @@ data class OverlayFirebaseData(
  */
 object OverlayFirebaseRepository {
     private const val TAG = "OverlayFirebaseRepo"
-    private const val PREFS = "ewallet_overlay_cache"
-    private const val KEY_ACCOUNTS = "accounts_json"
-    private const val KEY_CATEGORIES = "categories_json"
-    private const val KEY_UID = "firebase_uid"
-    private const val KEY_TOKEN = "firebase_id_token"
-    private const val KEY_DB_URL = "firebase_db_url"
-
-    // Matches google-services.json firebase_url for this project.
-    private const val DEFAULT_DB_URL =
+    const val PREFS_NAME = "ewallet_overlay_cache"
+    const val KEY_ACCOUNTS = "accounts_json"
+    const val KEY_CATEGORIES = "categories_json"
+    const val KEY_PLANNER_SUBTYPES = "planner_subtypes_json"
+    const val KEY_UID = "firebase_uid"
+    const val KEY_TOKEN = "firebase_id_token"
+    const val KEY_DB_URL = "firebase_db_url"
+    const val DEFAULT_DB_URL =
         "https://ewallet-2d1f1-default-rtdb.asia-southeast1.firebasedatabase.app"
 
-    private val defaultDebitCategories = listOf(
-        "Food & Groceries",
-        "Housing/Rent",
-        "Transportation",
-        "Healthcare",
-        "Entertainment",
-        "Shopping",
-        "SIP",
-        "Other essential",
-        "Other personal",
-    )
-
-    private val defaultCreditCategories = listOf(
-        "Salary",
-        "Other income",
-        "Refund",
-        "Transfer in",
-    )
+    private const val PREFS = PREFS_NAME
+    private const val KEY_SUBTYPES = KEY_PLANNER_SUBTYPES
 
     fun saveCache(
         context: Context,
         accountsJson: String,
         categoriesJson: String,
+        plannerSubtypesJson: String?,
         uid: String?,
         idToken: String?,
         dbUrl: String?,
@@ -74,6 +59,7 @@ object OverlayFirebaseRepository {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString(KEY_ACCOUNTS, accountsJson)
             .putString(KEY_CATEGORIES, categoriesJson)
+            .putString(KEY_SUBTYPES, plannerSubtypesJson ?: "{}")
             .putString(KEY_UID, uid)
             .putString(KEY_TOKEN, idToken)
             .putString(KEY_DB_URL, dbUrl ?: DEFAULT_DB_URL)
@@ -85,13 +71,22 @@ object OverlayFirebaseRepository {
         val refreshed = tryRefreshFromFirebaseRest(context)
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val accounts = parseAccounts(prefs.getString(KEY_ACCOUNTS, null))
-        val cachedCategories = parseCategories(prefs.getString(KEY_CATEGORIES, null))
+        val subtypesMap = OverlayPlannerData.parseSubtypesFromJson(
+            prefs.getString(KEY_SUBTYPES, null),
+        )
         val uid = prefs.getString(KEY_UID, null)
         val loggedIn = !uid.isNullOrBlank()
+        val isCredit = transactionType.equals("credit", ignoreCase = true)
+        val sections = if (isCredit) {
+            listOf("Income") + OverlayPlannerData.sections.filter { it != "Income" }
+        } else {
+            OverlayPlannerData.sections.filter { it != "Income" }
+        }
 
         return OverlayFirebaseData(
             accounts = accounts,
-            categories = categoriesForType(transactionType, cachedCategories),
+            plannerSections = sections,
+            subtypesBySection = subtypesMap,
             loggedIn = loggedIn,
             source = if (refreshed) "firebase" else "cache",
         )
@@ -113,10 +108,12 @@ object OverlayFirebaseRepository {
             val categories = linkedSetOf<String>()
             parseExpenseTypesJson(expenseTypesJson, categories)
             parseMoneyPlanJson(moneyPlanJson, categories)
+            val subtypesJson = buildSubtypesJsonFromMoneyPlan(moneyPlanJson)
 
             prefs.edit()
                 .putString(KEY_ACCOUNTS, accountsJson ?: "null")
                 .putString(KEY_CATEGORIES, JSONArray(categories.toList()).toString())
+                .putString(KEY_SUBTYPES, subtypesJson)
                 .apply()
             Log.d(TAG, "Refreshed overlay data from Firebase REST")
             true
@@ -218,6 +215,41 @@ object OverlayFirebaseRepository {
         }
     }
 
+    private fun buildSubtypesJsonFromMoneyPlan(raw: String?): String {
+        val base = OverlayPlannerData.parseSubtypesFromJson(null).toMutableMap()
+        if (raw.isNullOrBlank() || raw == "null") {
+            return JSONObject(base.mapValues { JSONArray(it.value) }).toString()
+        }
+        try {
+            val root = JSONObject(raw)
+            mergePlanNames(base, "Essentials", root.optJSONObject("expenses"))
+            mergePlanNames(base, "Investment", root.optJSONObject("investments"))
+            mergePlanNames(base, "Goals", root.optJSONObject("goals"))
+            mergePlanNames(base, "Debt & EMI", root.optJSONObject("debts"))
+        } catch (_: Exception) {
+        }
+        val out = JSONObject()
+        for ((section, names) in base) {
+            out.put(section, JSONArray(names))
+        }
+        return out.toString()
+    }
+
+    private fun mergePlanNames(
+        map: MutableMap<String, List<String>>,
+        section: String,
+        node: JSONObject?,
+    ) {
+        if (node == null) return
+        val list = map.getOrPut(section) { emptyList() }.toMutableList()
+        val keys = node.keys()
+        while (keys.hasNext()) {
+            val name = node.optJSONObject(keys.next())?.optString("name")?.trim() ?: continue
+            if (name.isNotEmpty() && !list.contains(name)) list.add(0, name)
+        }
+        map[section] = list
+    }
+
     private fun parseMoneyPlanJson(raw: String?, out: MutableSet<String>) {
         if (raw.isNullOrBlank() || raw == "null") return
         try {
@@ -233,15 +265,6 @@ object OverlayFirebaseRepository {
             }
         } catch (_: Exception) {
         }
-    }
-
-    private fun categoriesForType(type: String, fromFirebase: List<String>): List<String> {
-        val isCredit = type.equals("credit", ignoreCase = true)
-        val defaults = if (isCredit) defaultCreditCategories else defaultDebitCategories
-        val merged = linkedSetOf<String>()
-        merged.addAll(fromFirebase)
-        merged.addAll(defaults)
-        return merged.toList()
     }
 
     fun guessAccount(

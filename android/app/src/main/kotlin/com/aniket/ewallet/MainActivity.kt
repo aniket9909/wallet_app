@@ -103,6 +103,7 @@ class MainActivity : FlutterActivity() {
                     val args = call.arguments as? Map<String, Any?>
                     val accountsJson = args?.get("accountsJson") as? String ?: "[]"
                     val categoriesJson = args?.get("categoriesJson") as? String ?: "[]"
+                    val plannerSubtypesJson = args?.get("plannerSubtypesJson") as? String
                     val uid = args?.get("uid") as? String
                     val idToken = args?.get("idToken") as? String
                     val dbUrl = args?.get("dbUrl") as? String
@@ -110,6 +111,7 @@ class MainActivity : FlutterActivity() {
                         this,
                         accountsJson,
                         categoriesJson,
+                        plannerSubtypesJson,
                         uid,
                         idToken,
                         dbUrl,

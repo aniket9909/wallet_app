@@ -1,13 +1,15 @@
 package com.aniket.ewallet
 
 import android.app.Activity
-import android.content.Intent
 import android.graphics.Color
 import android.os.Build
-import android.os.Bundle
+import android.view.View
 import android.view.WindowManager
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -30,9 +32,27 @@ class SmsOverlayActivity : Activity() {
     private val io = Executors.newSingleThreadExecutor()
 
     private var accounts: List<OverlayAccount> = emptyList()
-    private var categories: List<String> = emptyList()
+    private var plannerSections: List<String> = emptyList()
+    private var subtypesBySection: Map<String, List<String>> = emptyMap()
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    private lateinit var smsBody: String
+    private lateinit var smsAddress: String
+    private var smsDate: Long = 0
+    private var smsAmount: Double = 0.0
+    private lateinit var smsType: String
+
+    private lateinit var formPanel: ScrollView
+    private lateinit var successPanel: LinearLayout
+    private lateinit var failurePanel: LinearLayout
+    private lateinit var accountSpinner: Spinner
+    private lateinit var sectionSpinner: Spinner
+    private lateinit var subtypeSpinner: Spinner
+    private lateinit var statusText: TextView
+    private lateinit var syncButton: Button
+    private lateinit var successDetailText: TextView
+    private lateinit var failureDetailText: TextView
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
@@ -45,7 +65,6 @@ class SmsOverlayActivity : Activity() {
                     WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
             )
         }
-
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         try {
@@ -56,126 +75,106 @@ class SmsOverlayActivity : Activity() {
 
         setContentView(R.layout.activity_sms_overlay)
 
-        val body = intent.getStringExtra(EXTRA_BODY).orEmpty()
-        val address = intent.getStringExtra(EXTRA_ADDRESS).orEmpty()
-        val date = intent.getLongExtra(EXTRA_DATE, System.currentTimeMillis())
-        val amount = intent.getDoubleExtra(EXTRA_AMOUNT, 0.0)
-        val type = intent.getStringExtra(EXTRA_TYPE) ?: "debit"
-        val isCredit = type.equals("credit", ignoreCase = true)
-        val plannerSection = if (isCredit) "Income" else "Essentials"
+        smsBody = intent.getStringExtra(EXTRA_BODY).orEmpty()
+        smsAddress = intent.getStringExtra(EXTRA_ADDRESS).orEmpty()
+        smsDate = intent.getLongExtra(EXTRA_DATE, System.currentTimeMillis())
+        smsAmount = intent.getDoubleExtra(EXTRA_AMOUNT, 0.0)
+        smsType = intent.getStringExtra(EXTRA_TYPE) ?: "debit"
+        val isCredit = smsType.equals("credit", ignoreCase = true)
 
-        val amountText = findViewById<TextView>(R.id.amountText)
-        val fromText = findViewById<TextView>(R.id.fromText)
-        val bodyPreview = findViewById<TextView>(R.id.bodyPreview)
+        formPanel = findViewById(R.id.formPanel)
+        successPanel = findViewById(R.id.successPanel)
+        failurePanel = findViewById(R.id.failurePanel)
+        accountSpinner = findViewById(R.id.accountSpinner)
+        sectionSpinner = findViewById(R.id.sectionSpinner)
+        subtypeSpinner = findViewById(R.id.subtypeSpinner)
+        statusText = findViewById(R.id.statusText)
+        syncButton = findViewById(R.id.syncButton)
+        successDetailText = findViewById(R.id.successDetailText)
+        failureDetailText = findViewById(R.id.failureDetailText)
+
+        findViewById<TextView>(R.id.amountText).text =
+            String.format(Locale.US, "₹%.2f", smsAmount)
+        findViewById<TextView>(R.id.fromText).text =
+            if (smsAddress.isNotEmpty()) "From: $smsAddress" else "From: —"
+        findViewById<TextView>(R.id.bodyPreview).text = smsBody
+
         val typeChip = findViewById<TextView>(R.id.typeChip)
-        val statusText = findViewById<TextView>(R.id.statusText)
-        val accountSpinner = findViewById<Spinner>(R.id.accountSpinner)
-        val categorySpinner = findViewById<Spinner>(R.id.categorySpinner)
-        val dismissButton = findViewById<Button>(R.id.dismissButton)
-        val syncButton = findViewById<Button>(R.id.syncButton)
-
-        amountText.text = String.format(Locale.US, "₹%.2f", amount)
-        fromText.text = if (address.isNotEmpty()) "From: $address" else "From: —"
-        bodyPreview.text = body
         typeChip.text = if (isCredit) "Credit" else "Debit"
         typeChip.setBackgroundResource(
             if (isCredit) R.drawable.sms_overlay_chip_credit
             else R.drawable.sms_overlay_chip_debit,
         )
 
-        dismissButton.setOnClickListener { finish() }
-        syncButton.setOnClickListener {
-            val account = selectedAccount(accountSpinner)
-            val category = selectedCategory(categorySpinner)
-            if (account.isNullOrBlank()) {
-                Toast.makeText(this, "Select a bank account", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            if (category.isNullOrBlank()) {
-                Toast.makeText(this, "Select a category", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
+        findViewById<Button>(R.id.dismissButton).setOnClickListener { finish() }
+        findViewById<Button>(R.id.successDismissButton).setOnClickListener { finish() }
+        findViewById<Button>(R.id.failureDismissButton).setOnClickListener { finish() }
+        findViewById<Button>(R.id.retryButton).setOnClickListener { showForm() }
+
+        sectionSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long,
+            ) {
+                refreshSubtypeSpinner()
             }
 
-            val launch = Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP
-                putExtra(EXTRA_OPEN_SYNC, true)
-                putExtra(EXTRA_BODY, body)
-                putExtra(EXTRA_ADDRESS, address)
-                putExtra(EXTRA_DATE, date)
-                putExtra(EXTRA_AMOUNT, amount)
-                putExtra(EXTRA_TYPE, type)
-                putExtra(EXTRA_ACCOUNT, account)
-                putExtra(EXTRA_CATEGORY, category)
-                putExtra(EXTRA_PLANNER_SECTION, plannerSection)
-            }
-            startActivity(launch)
-            finish()
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
+        syncButton.setOnClickListener { performSync() }
         syncButton.isEnabled = false
-        loadFirebaseOptions(
-            transactionType = type,
-            smsBody = body,
-            address = address,
-            accountSpinner = accountSpinner,
-            categorySpinner = categorySpinner,
-            statusText = statusText,
-            syncButton = syncButton,
-        )
+        loadFirebaseOptions()
     }
 
-    private fun loadFirebaseOptions(
-        transactionType: String,
-        smsBody: String,
-        address: String,
-        accountSpinner: Spinner,
-        categorySpinner: Spinner,
-        statusText: TextView,
-        syncButton: Button,
-    ) {
+    private fun loadFirebaseOptions() {
         io.execute {
-            val data = OverlayFirebaseRepository.fetch(this@SmsOverlayActivity, transactionType)
+            val data = OverlayFirebaseRepository.fetch(this@SmsOverlayActivity, smsType)
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 accounts = data.accounts
-                categories = data.categories
+                plannerSections = data.plannerSections
+                subtypesBySection = data.subtypesBySection
 
-                val accountLabels = if (accounts.isEmpty()) {
-                    listOf("No accounts — open app & add one")
-                } else {
-                    accounts.map { account ->
-                        val digits = account.lastDigits
-                        if (!digits.isNullOrBlank()) "${account.name} (···$digits)"
-                        else account.name
-                    }
-                }
                 accountSpinner.adapter = ArrayAdapter(
                     this,
                     android.R.layout.simple_spinner_dropdown_item,
-                    accountLabels,
+                    if (accounts.isEmpty()) {
+                        listOf("No accounts — open app & add one")
+                    } else {
+                        accounts.map { a ->
+                            val d = a.lastDigits
+                            if (!d.isNullOrBlank()) "${a.name} (···$d)" else a.name
+                        }
+                    },
                 )
 
-                categorySpinner.adapter = ArrayAdapter(
+                sectionSpinner.adapter = ArrayAdapter(
                     this,
                     android.R.layout.simple_spinner_dropdown_item,
-                    if (categories.isEmpty()) listOf("Other") else categories,
+                    plannerSections.ifEmpty { listOf("Essentials") },
                 )
 
-                val guessed = OverlayFirebaseRepository.guessAccount(accounts, smsBody, address)
-                if (guessed != null) {
-                    val idx = accounts.indexOfFirst { it.id == guessed.id }
+                val defaultSection = OverlayPlannerData.defaultSectionForType(
+                    smsType.equals("credit", true),
+                )
+                val sectionIdx = plannerSections.indexOf(defaultSection).coerceAtLeast(0)
+                sectionSpinner.setSelection(sectionIdx)
+                refreshSubtypeSpinner()
+
+                OverlayFirebaseRepository.guessAccount(accounts, smsBody, smsAddress)?.let { g ->
+                    val idx = accounts.indexOfFirst { it.id == g.id }
                     if (idx >= 0) accountSpinner.setSelection(idx)
                 }
 
                 statusText.text = when {
                     !data.loggedIn && accounts.isEmpty() ->
-                        "Sign in & open app once so overlay can load Firebase data"
+                        "Sign in & open app once to load Firebase data"
                     accounts.isEmpty() -> "No bank accounts found"
                     else ->
-                        "Loaded ${accounts.size} account(s) · ${categories.size} categor" +
-                            "${if (categories.size == 1) "y" else "ies"} (${data.source})"
+                        "${accounts.size} account(s) ready · pick section & subcategory"
                 }
                 statusText.setTextColor(
                     if (accounts.isEmpty()) Color.parseColor("#C2410C")
@@ -186,17 +185,94 @@ class SmsOverlayActivity : Activity() {
         }
     }
 
-    private fun selectedAccount(spinner: Spinner): String? {
-        if (accounts.isEmpty()) return null
-        val index = spinner.selectedItemPosition
-        if (index < 0 || index >= accounts.size) return null
-        return accounts[index].name
+    private fun refreshSubtypeSpinner() {
+        val section = sectionSpinner.selectedItem as? String ?: return
+        val subtypes = OverlayPlannerData.subtypesForSection(section, subtypesBySection)
+        subtypeSpinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            subtypes,
+        )
     }
 
-    private fun selectedCategory(spinner: Spinner): String? {
-        val item = spinner.selectedItem as? String ?: return null
-        if (item.isBlank() || item.startsWith("No ")) return null
-        return item
+    private fun performSync() {
+        val account = selectedAccount() ?: run {
+            Toast.makeText(this, "Select a bank account", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val section = sectionSpinner.selectedItem as? String
+        if (section.isNullOrBlank()) {
+            Toast.makeText(this, "Select a planner section", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val subtype = subtypeSpinner.selectedItem as? String
+        if (subtype.isNullOrBlank()) {
+            Toast.makeText(this, "Select a subcategory", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        syncButton.isEnabled = false
+        statusText.text = "Syncing to wallet…"
+        statusText.setTextColor(Color.parseColor("#4F46E5"))
+
+        val request = OverlaySyncRepository.SyncRequest(
+            body = smsBody,
+            address = smsAddress,
+            dateMillis = smsDate,
+            amount = smsAmount,
+            type = smsType,
+            accountName = account,
+            plannerSection = section,
+            subtype = subtype,
+        )
+
+        io.execute {
+            val result = OverlaySyncRepository.sync(this@SmsOverlayActivity, request)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                if (result.success) {
+                    showSuccess(result.message, account, section, subtype)
+                } else {
+                    showFailure(result.message)
+                }
+            }
+        }
+    }
+
+    private fun showForm() {
+        formPanel.visibility = View.VISIBLE
+        successPanel.visibility = View.GONE
+        failurePanel.visibility = View.GONE
+        syncButton.isEnabled = accounts.isNotEmpty()
+        statusText.text = "Ready to sync"
+        statusText.setTextColor(Color.parseColor("#64748B"))
+    }
+
+    private fun showSuccess(
+        message: String,
+        account: String,
+        section: String,
+        subtype: String,
+    ) {
+        formPanel.visibility = View.GONE
+        failurePanel.visibility = View.GONE
+        successPanel.visibility = View.VISIBLE
+        successDetailText.text =
+            "$message\n\nAccount: $account\nSection: $section\nSubcategory: $subtype"
+    }
+
+    private fun showFailure(error: String) {
+        formPanel.visibility = View.GONE
+        successPanel.visibility = View.GONE
+        failurePanel.visibility = View.VISIBLE
+        failureDetailText.text = error
+    }
+
+    private fun selectedAccount(): String? {
+        if (accounts.isEmpty()) return null
+        val index = accountSpinner.selectedItemPosition
+        if (index < 0 || index >= accounts.size) return null
+        return accounts[index].name
     }
 
     override fun onDestroy() {
