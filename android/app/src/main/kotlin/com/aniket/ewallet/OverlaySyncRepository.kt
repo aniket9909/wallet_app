@@ -31,6 +31,7 @@ object OverlaySyncRepository {
         val accountName: String,
         val plannerSection: String,
         val subtype: String,
+        val description: String? = null,
     )
 
     data class SyncResult(
@@ -58,7 +59,8 @@ object OverlaySyncRepository {
             val accountId = findAccountId(accountsRaw, request.accountName)
                 ?: return SyncResult(false, "Account \"${request.accountName}\" not found in Firebase")
 
-            val description = buildDescription(request.body, request.type)
+            val description = request.description?.takeIf { it.isNotBlank() }
+                ?: buildDescription(request.body, request.type)
             val isoDate = formatIsoDate(request.dateMillis)
             val txnType = if (request.type.equals("credit", true)) "credit" else "debit"
             val note =

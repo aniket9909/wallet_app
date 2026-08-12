@@ -61,6 +61,9 @@ class MainActivity : FlutterActivity() {
         super.onResume()
         isInForeground = true
         deliverPendingSyncIfReady()
+        if (QuickAccessBubbleService.isEnabled(this) && Settings.canDrawOverlays(this)) {
+            QuickAccessBubbleService.start(this)
+        }
     }
 
     override fun onPause() {
@@ -121,6 +124,24 @@ class MainActivity : FlutterActivity() {
                 "showTestSmsOverlay" -> {
                     showTestSmsOverlay()
                     result.success(true)
+                }
+                "startQuickAccessBubble" -> {
+                    result.success(QuickAccessBubbleService.start(this))
+                }
+                "stopQuickAccessBubble" -> {
+                    QuickAccessBubbleService.stop(this)
+                    result.success(true)
+                }
+                "isQuickAccessBubbleEnabled" -> {
+                    result.success(QuickAccessBubbleService.isEnabled(this))
+                }
+                "openQuickAddOverlay" -> {
+                    if (!Settings.canDrawOverlays(this)) {
+                        result.success(false)
+                    } else {
+                        QuickAccessBubbleService.launchQuickAdd(this)
+                        result.success(true)
+                    }
                 }
                 else -> result.notImplemented()
             }

@@ -1,6 +1,7 @@
 package com.aniket.ewallet
 
 import android.app.Activity
+import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.view.View
@@ -28,6 +29,7 @@ class SmsOverlayActivity : Activity() {
         const val EXTRA_ACCOUNT = "sms_account"
         const val EXTRA_CATEGORY = "sms_category"
         const val EXTRA_PLANNER_SECTION = "sms_planner_section"
+        const val EXTRA_MANUAL = "sms_manual"
     }
 
     private val io = Executors.newSingleThreadExecutor()
@@ -41,6 +43,7 @@ class SmsOverlayActivity : Activity() {
     private var smsDate: Long = 0
     private var smsAmount: Double = 0.0
     private lateinit var smsType: String
+    private var isManual: Boolean = false
 
     private lateinit var formPanel: ScrollView
     private lateinit var successPanel: LinearLayout
@@ -50,6 +53,8 @@ class SmsOverlayActivity : Activity() {
     private lateinit var subtypeSpinner: Spinner
     private lateinit var statusText: TextView
     private lateinit var amountInput: EditText
+    private lateinit var noteInput: EditText
+    private lateinit var typeChip: TextView
     private lateinit var syncButton: Button
     private lateinit var successDetailText: TextView
     private lateinit var failureDetailText: TextView
@@ -69,10 +74,13 @@ class SmsOverlayActivity : Activity() {
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        try {
-            val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
-            nm.cancelAll()
-        } catch (_: Exception) {
+        isManual = intent.getBooleanExtra(EXTRA_MANUAL, false)
+        if (!isManual) {
+            try {
+                val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+                nm.cancelAll()
+            } catch (_: Exception) {
+            }
         }
 
         setContentView(R.layout.activity_sms_overlay)
@@ -82,7 +90,6 @@ class SmsOverlayActivity : Activity() {
         smsDate = intent.getLongExtra(EXTRA_DATE, System.currentTimeMillis())
         smsAmount = intent.getDoubleExtra(EXTRA_AMOUNT, 0.0)
         smsType = intent.getStringExtra(EXTRA_TYPE) ?: "debit"
-        val isCredit = smsType.equals("credit", ignoreCase = true)
 
         formPanel = findViewById(R.id.formPanel)
         successPanel = findViewById(R.id.successPanel)
@@ -92,6 +99,8 @@ class SmsOverlayActivity : Activity() {
         subtypeSpinner = findViewById(R.id.subtypeSpinner)
         statusText = findViewById(R.id.statusText)
         amountInput = findViewById(R.id.amountInput)
+        noteInput = findViewById(R.id.noteInput)
+        typeChip = findViewById(R.id.typeChip)
         syncButton = findViewById(R.id.syncButton)
         successDetailText = findViewById(R.id.successDetailText)
         failureDetailText = findViewById(R.id.failureDetailText)
@@ -106,16 +115,33 @@ class SmsOverlayActivity : Activity() {
             }
         }
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
-        findViewById<TextView>(R.id.fromText).text =
-            if (smsAddress.isNotEmpty()) "From: $smsAddress" else "From: —"
-        findViewById<TextView>(R.id.bodyPreview).text = smsBody
 
-        val typeChip = findViewById<TextView>(R.id.typeChip)
-        typeChip.text = if (isCredit) "Credit" else "Debit"
-        typeChip.setBackgroundResource(
-            if (isCredit) R.drawable.sms_overlay_chip_credit
-            else R.drawable.sms_overlay_chip_debit,
-        )
+        val titleText = findViewById<TextView>(R.id.titleText)
+        val amountHint = findViewById<TextView>(R.id.amountHintText)
+        val fromText = findViewById<TextView>(R.id.fromText)
+        val bodyPreview = findViewById<TextView>(R.id.bodyPreview)
+
+        if (isManual) {
+            titleText.text = "Quick add"
+            amountHint.text = "Enter amount · tap Credit/Debit to switch"
+            fromText.text = "No SMS needed — fill amount, account & category"
+            bodyPreview.visibility = View.GONE
+            noteInput.visibility = View.VISIBLE
+            bindAmountField(0.0)
+        } else {
+            fromText.text =
+                if (smsAddress.isNotEmpty()) "From: $smsAddress" else "From: —"
+            bodyPreview.text = smsBody
+            bodyPreview.visibility = if (smsBody.isBlank()) View.GONE else View.VISIBLE
+            noteInput.visibility = View.GONE
+        }
+
+        bindTypeChip()
+        typeChip.setOnClickListener {
+            smsType = if (smsType.equals("credit", true)) "debit" else "credit"
+            bindTypeChip()
+            applyDefaultSectionForType()
+        }
 
         findViewById<Button>(R.id.dismissButton).setOnClickListener { finish() }
         findViewById<Button>(R.id.successDismissButton).setOnClickListener { finish() }
@@ -138,6 +164,12 @@ class SmsOverlayActivity : Activity() {
         syncButton.setOnClickListener { performSync() }
         syncButton.isEnabled = false
         loadFirebaseOptions()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        recreate()
     }
 
     private fun loadFirebaseOptions() {
@@ -229,19 +261,32 @@ class SmsOverlayActivity : Activity() {
         }
         smsAmount = amount
 
+        val note = noteInput.text?.toString()?.trim().orEmpty()
+        val body = when {
+            isManual && note.isNotEmpty() -> note
+            isManual -> "Quick add"
+            else -> smsBody
+        }
+        val description = when {
+            isManual && note.isNotEmpty() -> note
+            isManual -> "Quick add"
+            else -> null
+        }
+
         syncButton.isEnabled = false
         statusText.text = "Syncing to wallet…"
         statusText.setTextColor(Color.parseColor("#4F46E5"))
 
         val request = OverlaySyncRepository.SyncRequest(
-            body = smsBody,
-            address = smsAddress,
+            body = body,
+            address = if (isManual) "Quick add" else smsAddress,
             dateMillis = smsDate,
             amount = amount,
             type = smsType,
             accountName = account,
             plannerSection = section,
             subtype = subtype,
+            description = description,
         )
 
         io.execute {
@@ -284,6 +329,27 @@ class SmsOverlayActivity : Activity() {
         successPanel.visibility = View.GONE
         failurePanel.visibility = View.VISIBLE
         failureDetailText.text = error
+    }
+
+    private fun bindTypeChip() {
+        val isCredit = smsType.equals("credit", true)
+        typeChip.text = if (isCredit) "Credit" else "Debit"
+        typeChip.setBackgroundResource(
+            if (isCredit) R.drawable.sms_overlay_chip_credit
+            else R.drawable.sms_overlay_chip_debit,
+        )
+    }
+
+    private fun applyDefaultSectionForType() {
+        if (plannerSections.isEmpty()) return
+        val current = sectionSpinner.selectedItem as? String
+        val isDefaultSection = current == null ||
+            current == OverlayPlannerData.defaultSectionForType(true) ||
+            current == OverlayPlannerData.defaultSectionForType(false)
+        if (!isDefaultSection) return
+        val target = OverlayPlannerData.defaultSectionForType(smsType.equals("credit", true))
+        val idx = plannerSections.indexOf(target)
+        if (idx >= 0) sectionSpinner.setSelection(idx)
     }
 
     private fun bindAmountField(amount: Double) {

@@ -35,6 +35,7 @@
                     android:orientation="horizontal">
 
                     <TextView
+                        android:id="@+id/titleText"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
@@ -48,6 +49,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:background="@drawable/sms_overlay_chip_debit"
+                        android:clickable="true"
+                        android:focusable="true"
                         android:paddingLeft="12dp"
                         android:paddingTop="5dp"
                         android:paddingRight="12dp"
@@ -96,6 +99,7 @@
                 </LinearLayout>
 
                 <TextView
+                    android:id="@+id/amountHintText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
@@ -130,6 +134,25 @@
                 android:padding="12dp"
                 android:textColor="#334155"
                 android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/noteInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="16dp"
+                android:layout_marginTop="14dp"
+                android:layout_marginRight="16dp"
+                android:background="@drawable/sms_overlay_spinner_bg"
+                android:hint="Note / description (optional)"
+                android:imeOptions="actionDone"
+                android:importantForAutofill="no"
+                android:inputType="textCapSentences"
+                android:maxLines="2"
+                android:padding="12dp"
+                android:textColor="#334155"
+                android:textColorHint="#94A3B8"
+                android:textSize="13sp"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/statusText"

@@ -23,6 +23,7 @@ class _SmsSetupSectionState extends State<SmsSetupSection> with WidgetsBindingOb
   bool _isScanning = false;
   bool _isPermanentlyDenied = false;
   bool _canDrawOverlays = false;
+  bool _quickAccessOn = false;
 
   @override
   void initState() {
@@ -49,10 +50,16 @@ class _SmsSetupSectionState extends State<SmsSetupSection> with WidgetsBindingOb
     if (!Platform.isAndroid) return;
     final status = await Permission.sms.status;
     final canOverlay = await _checkOverlay();
+    var quickAccess = false;
+    try {
+      final repo = context.read<SmsRepository>();
+      quickAccess = await SmsImportService(repo).isQuickAccessBubbleEnabled();
+    } catch (_) {}
     if (!mounted) return;
     setState(() {
       _isPermanentlyDenied = status.isPermanentlyDenied;
       _canDrawOverlays = canOverlay;
+      _quickAccessOn = quickAccess;
     });
   }
 
@@ -69,6 +76,32 @@ class _SmsSetupSectionState extends State<SmsSetupSection> with WidgetsBindingOb
     try {
       final repo = context.read<SmsRepository>();
       await SmsImportService(repo).requestOverlayPermission();
+    } catch (_) {}
+  }
+
+  Future<void> _toggleQuickAccess(bool enabled) async {
+    try {
+      final repo = context.read<SmsRepository>();
+      final service = SmsImportService(repo);
+      if (enabled) {
+        final started = await service.startQuickAccessBubble();
+        if (!mounted) return;
+        setState(() => _quickAccessOn = started);
+        if (!started) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Enable Display over other apps first, then turn Quick add on.',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      } else {
+        await service.stopQuickAccessBubble();
+        if (!mounted) return;
+        setState(() => _quickAccessOn = false);
+      }
     } catch (_) {}
   }
 
@@ -378,6 +411,45 @@ class _SmsSetupSectionState extends State<SmsSetupSection> with WidgetsBindingOb
                         ),
                       ),
                     ],
+                    const SizedBox(height: 16),
+                    const Divider(height: 1),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.ads_click_outlined,
+                          color: _quickAccessOn ? Colors.green : Colors.orange,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Quick add floating button',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Keeps a ₹ button over other apps. Tap it to enter amount, account, section and subcategory when SMS is missed.',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: _quickAccessOn,
+                          onChanged: _toggleQuickAccess,
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,

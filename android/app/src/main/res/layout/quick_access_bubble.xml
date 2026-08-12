@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/bubbleIcon"
+    android:layout_width="60dp"
+    android:layout_height="60dp"
+    android:contentDescription="Quick add"
+    android:elevation="12dp"
+    android:scaleType="fitXY"
+    android:src="@drawable/ic_quick_access" />

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="60dp"
+    android:height="60dp"
+    android:viewportWidth="72"
+    android:viewportHeight="72">
+    <!-- Outer ring -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,36m-36,0a36,36 0,1 1,72 0a36,36 0,1 1,-72 0" />
+    <!-- Face -->
+    <path
+        android:fillColor="#4F46E5"
+        android:pathData="M36,36m-32,0a32,32 0,1 1,64 0a32,32 0,1 1,-64 0" />
+    <!-- ₹ top bar -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M23,20h26v4H23z" />
+    <!-- ₹ second bar -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M23,28h26v4H23z" />
+    <!-- ₹ stem -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M31,20h5v18H31z" />
+    <!-- ₹ diagonal leg -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M31,36h5l16,18h-6.5z" />
+    <!-- Quick-add plus badge -->
+    <path
+        android:fillColor="#22C55E"
+        android:pathData="M54,54m-11,0a11,11 0,1 1,22 0a11,11 0,1 1,-22 0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M52.5,48.5h3v5h5v3h-5v5h-3v-5h-5v-3h5z" />
+</vector>

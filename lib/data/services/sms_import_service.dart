@@ -97,6 +97,32 @@ class SmsImportService {
     return await _channel.invokeMethod<bool>('showTestSmsOverlay') ?? false;
   }
 
+  Future<bool> isQuickAccessBubbleEnabled() async {
+    if (!Platform.isAndroid) return false;
+    return await _channel.invokeMethod<bool>('isQuickAccessBubbleEnabled') ??
+        false;
+  }
+
+  Future<bool> startQuickAccessBubble() async {
+    if (!Platform.isAndroid) return false;
+    final canOverlay = await canDrawOverlays();
+    if (!canOverlay) {
+      await requestOverlayPermission();
+      return false;
+    }
+    return await _channel.invokeMethod<bool>('startQuickAccessBubble') ?? false;
+  }
+
+  Future<void> stopQuickAccessBubble() async {
+    if (!Platform.isAndroid) return;
+    await _channel.invokeMethod<bool>('stopQuickAccessBubble');
+  }
+
+  Future<bool> openQuickAddOverlay() async {
+    if (!Platform.isAndroid) return false;
+    return await _channel.invokeMethod<bool>('openQuickAddOverlay') ?? false;
+  }
+
   Future<Map<String, dynamic>?> getPendingSmsSync() async {
     if (!Platform.isAndroid) return null;
     final result = await _channel.invokeMethod<dynamic>('getPendingSmsSync');
