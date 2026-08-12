@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:ewallet/viewmodels/splash_screen_view_model.dart';
+import 'package:ewallet/presentation/theme/brand_colors.dart';
 
 class SplashScreen extends StatelessWidget {
   @override
@@ -12,11 +12,8 @@ class SplashScreen extends StatelessWidget {
         builder: (context, viewModel, child) {
           return Container(
             color: Colors.white,
-            child: Center(
-              child: Image.asset(
-                'assets/logo/money_mate_logo.png',
-                fit: BoxFit.cover,
-              ),
+            child: const Center(
+              child: BrandLogo(width: 280),
             ),
           );
         },

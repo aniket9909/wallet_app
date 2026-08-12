@@ -1,6 +1,6 @@
 {
-    "name": "ewallet",
-    "short_name": "ewallet",
+    "name": "Arthigo Smart Money Tracker",
+    "short_name": "Arthigo",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

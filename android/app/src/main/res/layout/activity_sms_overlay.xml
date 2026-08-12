@@ -58,16 +58,51 @@
                         android:textStyle="bold" />
                 </LinearLayout>
 
-                <TextView
-                    android:id="@+id/amountText"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
+                    android:gravity="center"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingEnd="4dp"
+                        android:text="₹"
+                        android:textColor="#FFFFFF"
+                        android:textSize="28sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/amountInput"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/sms_overlay_amount_input_bg"
+                        android:gravity="center"
+                        android:hint="0.00"
+                        android:imeOptions="actionDone"
+                        android:importantForAutofill="no"
+                        android:inputType="numberDecimal"
+                        android:minWidth="148dp"
+                        android:paddingLeft="12dp"
+                        android:paddingTop="6dp"
+                        android:paddingRight="12dp"
+                        android:paddingBottom="6dp"
+                        android:textColor="#FFFFFF"
+                        android:textColorHint="#B3FFFFFF"
+                        android:textSize="28sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
                     android:gravity="center_horizontal"
-                    android:text="₹0.00"
-                    android:textColor="#FFFFFF"
-                    android:textSize="32sp"
-                    android:textStyle="bold" />
+                    android:text="Tap amount to correct if SMS value is wrong"
+                    android:textColor="#C7D2FE"
+                    android:textSize="11sp" />
 
                 <TextView
                     android:id="@+id/fromText"

@@ -8,6 +8,7 @@ import android.view.WindowManager
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Spinner
@@ -48,6 +49,7 @@ class SmsOverlayActivity : Activity() {
     private lateinit var sectionSpinner: Spinner
     private lateinit var subtypeSpinner: Spinner
     private lateinit var statusText: TextView
+    private lateinit var amountInput: EditText
     private lateinit var syncButton: Button
     private lateinit var successDetailText: TextView
     private lateinit var failureDetailText: TextView
@@ -89,12 +91,21 @@ class SmsOverlayActivity : Activity() {
         sectionSpinner = findViewById(R.id.sectionSpinner)
         subtypeSpinner = findViewById(R.id.subtypeSpinner)
         statusText = findViewById(R.id.statusText)
+        amountInput = findViewById(R.id.amountInput)
         syncButton = findViewById(R.id.syncButton)
         successDetailText = findViewById(R.id.successDetailText)
         failureDetailText = findViewById(R.id.failureDetailText)
 
-        findViewById<TextView>(R.id.amountText).text =
-            String.format(Locale.US, "₹%.2f", smsAmount)
+        if (smsAmount <= 0.0) {
+            smsAmount = SmsTxnDetector.extractAmount(smsBody) ?: 0.0
+        }
+        bindAmountField(smsAmount)
+        amountInput.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus && amountInput.text.isNotEmpty()) {
+                amountInput.selectAll()
+            }
+        }
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
         findViewById<TextView>(R.id.fromText).text =
             if (smsAddress.isNotEmpty()) "From: $smsAddress" else "From: —"
         findViewById<TextView>(R.id.bodyPreview).text = smsBody
@@ -210,6 +221,13 @@ class SmsOverlayActivity : Activity() {
             Toast.makeText(this, "Select a subcategory", Toast.LENGTH_SHORT).show()
             return
         }
+        val amount = parsedAmount()
+        if (amount == null || amount <= 0.0) {
+            Toast.makeText(this, "Enter a valid amount", Toast.LENGTH_SHORT).show()
+            amountInput.requestFocus()
+            return
+        }
+        smsAmount = amount
 
         syncButton.isEnabled = false
         statusText.text = "Syncing to wallet…"
@@ -219,7 +237,7 @@ class SmsOverlayActivity : Activity() {
             body = smsBody,
             address = smsAddress,
             dateMillis = smsDate,
-            amount = smsAmount,
+            amount = amount,
             type = smsType,
             accountName = account,
             plannerSection = section,
@@ -258,7 +276,7 @@ class SmsOverlayActivity : Activity() {
         failurePanel.visibility = View.GONE
         successPanel.visibility = View.VISIBLE
         successDetailText.text =
-            "$message\n\nAccount: $account\nSection: $section\nSubcategory: $subtype"
+            "$message\n\nAmount: ₹${"%.2f".format(Locale.US, smsAmount)}\nAccount: $account\nSection: $section\nSubcategory: $subtype"
     }
 
     private fun showFailure(error: String) {
@@ -266,6 +284,32 @@ class SmsOverlayActivity : Activity() {
         successPanel.visibility = View.GONE
         failurePanel.visibility = View.VISIBLE
         failureDetailText.text = error
+    }
+
+    private fun bindAmountField(amount: Double) {
+        amountInput.setText(
+            if (amount > 0.0) String.format(Locale.US, "%.2f", amount) else "",
+        )
+        if (amount <= 0.0) {
+            amountInput.hint = "Enter amount"
+        }
+    }
+
+    private fun parsedAmount(): Double? {
+        val typed = amountInput.text?.toString().orEmpty()
+        val fromField = parseAmountText(typed)
+        if (fromField != null && fromField > 0.0) return fromField
+        return SmsTxnDetector.extractAmount(smsBody)?.takeIf { it > 0.0 }
+    }
+
+    private fun parseAmountText(raw: String): Double? {
+        val cleaned = raw
+            .replace("₹", "")
+            .replace(",", "")
+            .replace(" ", "")
+            .trim()
+        if (cleaned.isEmpty()) return null
+        return cleaned.toDoubleOrNull()?.takeIf { it > 0.0 && it < 100_000_000 }
     }
 
     private fun selectedAccount(): String? {

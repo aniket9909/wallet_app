@@ -29,7 +29,7 @@ class MyApp extends StatelessWidget {
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'Wallet App',
+        title: 'Arthigo Smart Money Tracker',
         theme: lightTheme,
         initialRoute: AppRoutes.splashScreen,
         routes: AppPages.pageList,

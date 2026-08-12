@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="Arthigo smart wallet app"
+        android:label="Arthigo Smart Money Tracker"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true">
@@ -35,6 +35,7 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:theme="@style/SmsOverlayTheme"
+            android:windowSoftInputMode="adjustPan|stateHidden"
             android:finishOnTaskLaunch="false" />
         <receiver
             android:name=".SmsReceiver"

@@ -186,7 +186,7 @@ class _MyAppState extends State<MyApp> {
             return MaterialApp(
               navigatorKey: navigatorKey,
               debugShowCheckedModeBanner: false,
-              title: 'Arthigo smart wallet app',
+              title: 'Arthigo Smart Money Tracker',
               theme: AppTheme.lightTheme,
               darkTheme: AppTheme.darkTheme,
               themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,

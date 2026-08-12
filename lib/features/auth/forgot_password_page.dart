@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ewallet/data/auth_repository.dart' as auth_repo;
+import 'package:ewallet/presentation/theme/brand_colors.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -60,16 +61,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     return Scaffold(
       body: Container(
         width: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              Theme.of(context).colorScheme.secondary.withOpacity(0.1),
-            ],
-          ),
-        ),
+        decoration: const BoxDecoration(gradient: BrandColors.washGradient),
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -78,39 +70,26 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 8),
                   
-                  // Back Button
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back),
+                    icon: const Icon(Icons.arrow_back, color: BrandColors.navy),
                   ).animate().fadeIn(duration: 400.ms),
                   
-                  const SizedBox(height: 20),
-
-                  // Icon
                   Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.lock_reset,
-                        size: 64,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ).animate().scale(duration: 600.ms, curve: Curves.easeOut),
+                    child: const BrandLogo(width: 180)
+                        .animate()
+                        .scale(duration: 600.ms, curve: Curves.easeOut),
                   ),
                   
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
 
-                  // Title
                   Text(
                     'Reset Password',
                     style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: BrandColors.navy,
                         ),
                     textAlign: TextAlign.center,
                   ).animate().fadeIn(duration: 600.ms).slideY(begin: -0.2, end: 0),
@@ -181,17 +160,28 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   SizedBox(
                     width: double.infinity,
                     height: 56,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _sendResetEmail,
-                      child: _isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
-                              'Send Reset Link',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: BrandColors.logoGradient,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _sendResetEmail,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : const Text(
+                                'Send Reset Link',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
+                      ),
                     ),
                   ).animate().fadeIn(duration: 600.ms, delay: 300.ms),
                   

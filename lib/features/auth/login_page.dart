@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../data/auth_repository.dart' as auth_repo;
 import '../../routes/app_routes.dart';
 import '../../core/utils/auth_bootstrap.dart';
+import '../../presentation/theme/brand_colors.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -108,16 +109,7 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       body: Container(
         width: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              Theme.of(context).colorScheme.secondary.withOpacity(0.1),
-            ],
-          ),
-        ),
+        decoration: const BoxDecoration(gradient: BrandColors.washGradient),
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -126,28 +118,21 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 60),
+                  const SizedBox(height: 24),
                   
-                  // Logo
                   Center(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: Image.asset(
-                        'assets/logo/logo.jpeg',
-                        width: 120,
-                        height: 120,
-                        fit: BoxFit.cover,
-                      ),
-                    ).animate().scale(duration: 600.ms, curve: Curves.easeOut),
+                    child: const BrandLogo(width: 220)
+                        .animate()
+                        .scale(duration: 600.ms, curve: Curves.easeOut),
                   ),
                   
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 28),
 
-                  // Title
                   Text(
                     'Welcome Back!',
                     style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: BrandColors.navy,
                         ),
                   ).animate().fadeIn(duration: 600.ms).slideX(begin: -0.2, end: 0),
                   
@@ -254,17 +239,28 @@ class _LoginPageState extends State<LoginPage> {
                   SizedBox(
                     width: double.infinity,
                     height: 56,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _login,
-                      child: _isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
-                              'Login',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: BrandColors.logoGradient,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _login,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : const Text(
+                                'Login',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
+                      ),
                     ),
                   ).animate().fadeIn(duration: 600.ms, delay: 500.ms),
                   

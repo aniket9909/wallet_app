@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../routes/app_routes.dart';
 import '../../data/auth_repository.dart' as auth_repo;
 import '../../core/utils/auth_bootstrap.dart';
+import '../../presentation/theme/brand_colors.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -83,16 +84,7 @@ class _RegisterPageState extends State<RegisterPage> {
     return Scaffold(
       body: Container(
         width: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              Theme.of(context).colorScheme.secondary.withOpacity(0.1),
-            ],
-          ),
-        ),
+        decoration: const BoxDecoration(gradient: BrandColors.washGradient),
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -101,21 +93,26 @@ class _RegisterPageState extends State<RegisterPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 8),
                   
-                  // Back Button
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back),
+                    icon: const Icon(Icons.arrow_back, color: BrandColors.navy),
                   ).animate().fadeIn(duration: 400.ms),
                   
+                  Center(
+                    child: const BrandLogo(width: 180)
+                        .animate()
+                        .scale(duration: 600.ms, curve: Curves.easeOut),
+                  ),
+
                   const SizedBox(height: 20),
 
-                  // Title
                   Text(
                     'Create Account',
                     style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: BrandColors.navy,
                         ),
                   ).animate().fadeIn(duration: 600.ms).slideX(begin: -0.2, end: 0),
                   
@@ -262,17 +259,28 @@ class _RegisterPageState extends State<RegisterPage> {
                   SizedBox(
                     width: double.infinity,
                     height: 56,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _register,
-                      child: _isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
-                              'Create Account',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: BrandColors.logoGradient,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _register,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : const Text(
+                                'Create Account',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
+                      ),
                     ),
                   ).animate().fadeIn(duration: 600.ms, delay: 600.ms),
                   

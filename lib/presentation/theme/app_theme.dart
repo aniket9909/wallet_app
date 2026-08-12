@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
+import 'brand_colors.dart';
 
 class AppTheme {
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color(0xFF6366F1), // Indigo
+      seedColor: BrandColors.blue,
       brightness: Brightness.light,
+    ).copyWith(
+      primary: BrandColors.blue,
+      secondary: BrandColors.green,
+      tertiary: BrandColors.cyan,
     ),
-    scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+    scaffoldBackgroundColor: BrandColors.surface,
     appBarTheme: const AppBarTheme(
       elevation: 0,
       backgroundColor: Colors.transparent,
-      foregroundColor: Colors.black87,
+      foregroundColor: BrandColors.navy,
     ),
     cardTheme: CardThemeData(
       elevation: 2,
@@ -22,6 +27,8 @@ class AppTheme {
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         elevation: 0,
+        backgroundColor: BrandColors.blue,
+        foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
@@ -30,32 +37,38 @@ class AppTheme {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: Colors.grey[100],
+      fillColor: Colors.white,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(color: BrandColors.blue.withOpacity(0.12)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
+        borderSide: const BorderSide(color: BrandColors.blue, width: 2),
       ),
     ),
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       elevation: 4,
+      backgroundColor: BrandColors.blue,
+      foregroundColor: Colors.white,
     ),
   );
 
   static ThemeData darkTheme = ThemeData(
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color(0xFF6366F1),
+      seedColor: BrandColors.blue,
       brightness: Brightness.dark,
+    ).copyWith(
+      primary: BrandColors.cyan,
+      secondary: BrandColors.green,
+      tertiary: BrandColors.blue,
     ),
-    scaffoldBackgroundColor: const Color(0xFF0F172A),
+    scaffoldBackgroundColor: const Color(0xFF07111F),
     appBarTheme: const AppBarTheme(
       elevation: 0,
       backgroundColor: Colors.transparent,
@@ -63,7 +76,7 @@ class AppTheme {
     ),
     cardTheme: CardThemeData(
       elevation: 2,
-      color: const Color(0xFF1E293B),
+      color: const Color(0xFF122033),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
@@ -71,6 +84,8 @@ class AppTheme {
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         elevation: 0,
+        backgroundColor: BrandColors.blue,
+        foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
@@ -79,7 +94,7 @@ class AppTheme {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: const Color(0xFF1E293B),
+      fillColor: const Color(0xFF122033),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide.none,
@@ -90,12 +105,13 @@ class AppTheme {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
+        borderSide: const BorderSide(color: BrandColors.cyan, width: 2),
       ),
     ),
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       elevation: 4,
+      backgroundColor: BrandColors.blue,
+      foregroundColor: Colors.white,
     ),
   );
 }
-

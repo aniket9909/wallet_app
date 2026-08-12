@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../../data/models/money_plan_model.dart';
 import '../../../logic/cubits/money_plan_cubit.dart';
 import '../../widgets/money_planner/money_plan_widgets.dart';
+import '../../theme/brand_colors.dart';
 
 class MoneyPlanSetupWizard extends StatefulWidget {
   const MoneyPlanSetupWizard({super.key});
@@ -281,12 +282,15 @@ class _MoneyPlanSetupWizardState extends State<MoneyPlanSetupWizard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const Center(child: BrandLogo(width: 120)),
+                  const SizedBox(height: 12),
                   Text(
                     'All-in-One Money Planner',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: BrandColors.navy,
                         ),
                   ),
                   const SizedBox(height: 4),
