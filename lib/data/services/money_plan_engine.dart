@@ -164,7 +164,7 @@ class MoneyPlanEngine {
         .where((d) => d.isActive)
         .fold<double>(0, (s, d) => s + d.emi);
 
-    final personal = plan.personalSpending;
+    final personal = plan.personalBudget;
 
     final planned = essentials +
         investments +
@@ -351,7 +351,7 @@ class MoneyPlanEngine {
     required MoneyPlanModel plan,
   }) {
     return [
-      'Reduce personal spending first (₹${plan.personalSpending.toStringAsFixed(0)} available).',
+      'Reduce personal spending first (₹${plan.personalBudget.toStringAsFixed(0)} available).',
       'Pause or extend lower-priority optional goals.',
       'Trim variable expenses (food, transport, shopping).',
       'Do not automatically reduce protected SIP (₹${plan.investments.where((i) => i.isProtected).fold<double>(0, (s, i) => s + i.minimumAmount).toStringAsFixed(0)}).',

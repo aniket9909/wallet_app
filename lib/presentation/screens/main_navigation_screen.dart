@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../widgets/pending_sms_review_stack.dart';
 import 'dashboard_screen.dart';
 import 'accounts_screen.dart';
 import 'money_planner/money_planner_screen.dart';
@@ -23,6 +24,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     ExpenseTrackerScreen(),
     SettingsScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      PendingSmsReviewStack.showIfNeeded(context);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -96,4 +106,3 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 }
-

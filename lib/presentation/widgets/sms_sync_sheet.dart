@@ -9,12 +9,14 @@ import '../../logic/cubits/money_plan_cubit.dart';
 import '../../logic/cubits/sms_cubit.dart';
 import '../../logic/cubits/transaction_cubit.dart';
 import '../../core/utils/sms_detection_util.dart';
+import '../../core/utils/planner_navigation.dart';
 
 class SmsSyncSheet extends StatefulWidget {
   final SmsMessageModel message;
   final String? initialAccount;
   final String? initialCategory;
   final String? initialPlannerSection;
+  final bool asPage;
 
   const SmsSyncSheet({
     super.key,
@@ -22,88 +24,48 @@ class SmsSyncSheet extends StatefulWidget {
     this.initialAccount,
     this.initialCategory,
     this.initialPlannerSection,
+    this.asPage = false,
   });
 
-  static const plannerSections = <String>[
-    'Essentials',
-    'Investment',
-    'Emergency Fund',
-    'Goals',
-    'Debt & EMI',
-    'Personal',
-    'Income',
-  ];
+  static const plannerSections = PlannerSections.pickerOrder;
 
   /// Default subtypes for each Money Planner section.
-  static const Map<String, List<String>> plannerSubtypes = {
-    'Essentials': [
-      'Housing/Rent',
-      'Electricity',
-      'Internet/Phone',
-      'Food & Groceries',
-      'Transportation',
-      'Healthcare',
-      'Insurance',
-      'Family responsibilities',
-      'Other essential',
-    ],
-    'Investment': [
-      'SIP',
-      'Stocks',
-      'Mutual funds',
-      'Retirement',
-      'Other investment',
-    ],
-    'Emergency Fund': [
-      'Monthly contribution',
-      'Top-up',
-      'Other emergency',
-    ],
-    'Goals': [
-      'Gold',
-      'Furniture',
-      'Vacation',
-      'Laptop',
-      'Bike',
-      'House down payment',
-      'Education',
-      'Wedding',
-      'Car',
-      'Other goal',
-    ],
-    'Debt & EMI': [
-      'Loan EMI',
-      'Credit card',
-      'Personal debt',
-      'Other debt',
-    ],
-    'Personal': [
-      'Entertainment',
-      'Dining out',
-      'Hobbies',
-      'Shopping',
-      'Lifestyle',
-      'Other personal',
-    ],
-    'Income': [
-      'Salary',
-      'Other income',
-      'Refund',
-      'Transfer in',
-    ],
-  };
+  static const Map<String, List<String>> plannerSubtypes =
+      PlannerCategories.defaultSubtypes;
 
-  static Future<void> show(
+  /// Opens the sync form (account, planner category, description, amount).
+  /// Returns `true` when the SMS was saved successfully.
+  static Future<bool> show(
     BuildContext context,
     SmsMessageModel message, {
     String? initialAccount,
     String? initialCategory,
     String? initialPlannerSection,
-  }) {
-    return showModalBottomSheet(
+    bool asPage = false,
+  }) async {
+    if (asPage) {
+      final result = await Navigator.of(context, rootNavigator: true).push<bool>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => Scaffold(
+            body: SmsSyncSheet(
+              message: message,
+              initialAccount: initialAccount,
+              initialCategory: initialCategory,
+              initialPlannerSection: initialPlannerSection,
+              asPage: true,
+            ),
+          ),
+        ),
+      );
+      return result == true;
+    }
+
+    final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       useSafeArea: false,
+      useRootNavigator: true,
       enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (_) => SmsSyncSheet(
@@ -113,6 +75,7 @@ class SmsSyncSheet extends StatefulWidget {
         initialPlannerSection: initialPlannerSection,
       ),
     );
+    return result == true;
   }
 
   @override
@@ -346,7 +309,7 @@ class _SmsSyncSheetState extends State<SmsSyncSheet> {
       }
 
       if (!mounted) return;
-      Navigator.pop(context);
+      Navigator.pop(context, true);
       if (!context.mounted) return;
       _showSnack('Synced to $_selectedPlannerSection · marked as read', Colors.green);
     } catch (e) {
@@ -378,14 +341,27 @@ class _SmsSyncSheetState extends State<SmsSyncSheet> {
     final media = MediaQuery.of(context);
     final subtypes = _subtypesFor(_selectedPlannerSection ?? 'Essentials');
 
+    // Auto-select first account when none chosen yet.
+    if (_selectedBank == null && accounts.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _selectedBank != null) return;
+        setState(() => _selectedBank = accounts.first.name);
+      });
+    }
+
+    final sheetHeight =
+        widget.asPage ? media.size.height : media.size.height * 0.94;
+
     return Padding(
       padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
       child: Container(
         width: media.size.width,
-        height: media.size.height * 0.94,
+        height: sheetHeight,
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: widget.asPage
+              ? BorderRadius.zero
+              : const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Form(
           key: _formKey,
@@ -396,7 +372,9 @@ class _SmsSyncSheetState extends State<SmsSyncSheet> {
                 width: double.infinity,
                 padding: EdgeInsets.fromLTRB(
                   20,
-                  media.padding.top > 0 ? 8 : 14,
+                  widget.asPage
+                      ? (media.padding.top > 0 ? media.padding.top : 14)
+                      : (media.padding.top > 0 ? 8 : 14),
                   12,
                   16,
                 ),
@@ -409,23 +387,25 @@ class _SmsSyncSheetState extends State<SmsSyncSheet> {
                       Color.lerp(primary, accent, 0.45)!,
                     ],
                   ),
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(24)),
+                  borderRadius: widget.asPage
+                      ? BorderRadius.zero
+                      : const BorderRadius.vertical(top: Radius.circular(24)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.45),
-                          borderRadius: BorderRadius.circular(2),
+                    if (!widget.asPage)
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.45),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
                         ),
                       ),
-                    ),
                     Row(
                       children: [
                         Expanded(
@@ -481,7 +461,7 @@ class _SmsSyncSheetState extends State<SmsSyncSheet> {
                           ),
                         ),
                         IconButton(
-                          onPressed: () => Navigator.pop(context),
+                          onPressed: () => Navigator.pop(context, false),
                           icon: const Icon(Icons.close_rounded,
                               color: Colors.white),
                         ),

@@ -148,6 +148,42 @@ class MoneyPlanCubit extends Cubit<MoneyPlanState> {
     await _saveAndEmit(current.copyWith(personalSpending: amount));
   }
 
+  Future<void> updatePersonalCategories(List<PlanExpense> items) async {
+    final current = _currentPlan;
+    if (current == null) return;
+    final total = items.fold<double>(0, (s, e) => s + e.monthlyAmount);
+    await _saveAndEmit(
+      current.copyWith(
+        personalCategories: items,
+        personalSpending: total,
+      ),
+    );
+  }
+
+  Future<void> updateGoals(List<PlanGoal> goals) async {
+    final current = _currentPlan;
+    if (current == null) return;
+    final next = current.copyWith(goals: goals);
+    final conflict = _engine.checkAffordability(next);
+    await _saveAndEmit(
+      next,
+      suggestion: conflict != null && conflict.hasConflict
+          ? ReallocationSuggestion(
+              title: 'Your goals exceed your available monthly budget',
+              description:
+                  'You need ₹${conflict.shortfall.toStringAsFixed(0)} more per month. Affected: ${conflict.affectedItems.join(', ')}. ${conflict.suggestions.take(3).join(' · ')}',
+              allocations: const {},
+            )
+          : null,
+    );
+  }
+
+  Future<void> updateDebts(List<PlanDebt> debts) async {
+    final current = _currentPlan;
+    if (current == null) return;
+    await _saveAndEmit(current.copyWith(debts: debts));
+  }
+
   Future<void> addOrUpdateGoal(PlanGoal goal) async {
     final current = _currentPlan;
     if (current == null) return;
@@ -236,6 +272,7 @@ class MoneyPlanCubit extends Cubit<MoneyPlanState> {
     var goals = [...current.goals];
     var emergency = current.emergencyFund;
     var personal = current.personalSpending;
+    var personalCategories = [...current.personalCategories];
 
     allocations.forEach((key, amount) {
       switch (key) {
@@ -276,6 +313,17 @@ class MoneyPlanCubit extends Cubit<MoneyPlanState> {
           break;
         case 'personal':
           personal += amount;
+          if (personalCategories.isNotEmpty) {
+            final last = personalCategories.length - 1;
+            final item = personalCategories[last];
+            personalCategories[last] = item.copyWith(
+              monthlyAmount: item.monthlyAmount + amount,
+            );
+            personal = personalCategories.fold<double>(
+              0,
+              (s, e) => s + e.monthlyAmount,
+            );
+          }
           break;
       }
     });
@@ -286,6 +334,7 @@ class MoneyPlanCubit extends Cubit<MoneyPlanState> {
         goals: goals,
         emergencyFund: emergency,
         personalSpending: personal,
+        personalCategories: personalCategories,
       ),
       clearSuggestion: true,
     );

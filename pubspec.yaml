@@ -107,7 +107,7 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/logo/money_mate_icon.png"
+  image_path: "assets/logo/light_logo.jpeg"
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

@@ -115,7 +115,15 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
                             ),
                           ],
                         ),
-                        child: const Icon(Icons.account_balance_wallet, size: 64, color: Colors.white),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.asset(
+                            'assets/logo/logo.jpeg',
+                            width: 80,
+                            height: 80,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       )
                           .animate(onPlay: (controller) => controller.repeat())
                           .shimmer(duration: 2000.ms, color: Colors.white.withOpacity(0.25))
@@ -124,7 +132,7 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
                           .scale(duration: 1800.ms, begin: const Offset(1.06, 1.06), end: const Offset(1, 1)),
                       const SizedBox(height: 20),
                       Text(
-                        'E-Wallet',
+                        'Arthigo',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 32,
@@ -134,7 +142,7 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
                       ).animate().fadeIn(duration: 600.ms),
                       const SizedBox(height: 6),
                       Text(
-                        'Expense Manager',
+                        'Smart Wallet App',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.9),
                           fontSize: 16,

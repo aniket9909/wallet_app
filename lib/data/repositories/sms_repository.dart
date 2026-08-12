@@ -114,6 +114,14 @@ class SmsRepository {
     }
   }
 
+  Future<List<SmsMessageModel>> getPendingUnsyncedSince(DateTime since) async {
+    try {
+      return await _dbHelper.getPendingUnsyncedSince(since);
+    } catch (e) {
+      return [];
+    }
+  }
+
   Future<void> updateSmsStatus(int id, SmsStatus status) async {
     try {
       final sms = await _dbHelper.getSmsById(id);

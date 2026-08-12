@@ -356,6 +356,28 @@ class MonthlyTrackerEngine {
     MoneyPlanModel plan,
     List<TransactionModelNew> txns,
   ) {
+    if (plan.personalCategories.isNotEmpty) {
+      final items = plan.personalCategories.map((e) {
+        final matched = _matchTxns(
+          txns,
+          section: PlannerSections.personal,
+          name: e.name,
+        );
+        return TrackerLineItem(
+          section: PlannerSections.personal,
+          name: e.name,
+          id: e.id,
+          planned: e.monthlyAmount,
+          actual: matched.$1,
+          txnCount: matched.$2,
+        );
+      }).toList();
+      return TrackerSectionSummary(
+        section: PlannerSections.personal,
+        items: items,
+      );
+    }
+
     final matched = _matchTxns(
       txns,
       section: PlannerSections.personal,
@@ -369,7 +391,7 @@ class MonthlyTrackerEngine {
           section: PlannerSections.personal,
           name: 'Personal spending',
           id: 'personal',
-          planned: plan.personalSpending,
+          planned: plan.personalBudget,
           actual: matched.$1,
           txnCount: matched.$2,
         ),

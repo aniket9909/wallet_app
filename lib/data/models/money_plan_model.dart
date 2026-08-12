@@ -815,6 +815,7 @@ class MoneyPlanModel extends Equatable {
   final List<PlanDebt> debts;
   final List<PlanRule> rules;
   final double personalSpending;
+  final List<PlanExpense> personalCategories;
   final DateTime? updatedAt;
 
   const MoneyPlanModel({
@@ -827,8 +828,14 @@ class MoneyPlanModel extends Equatable {
     this.debts = const [],
     this.rules = const [],
     this.personalSpending = 0,
+    this.personalCategories = const [],
     this.updatedAt,
   });
+
+  /// Personal budget used by the engine — subcategory sum when set up.
+  double get personalBudget => personalCategories.isNotEmpty
+      ? personalCategories.fold<double>(0, (s, e) => s + e.monthlyAmount)
+      : personalSpending;
 
   MoneyPlanModel copyWith({
     bool? setupComplete,
@@ -840,6 +847,7 @@ class MoneyPlanModel extends Equatable {
     List<PlanDebt>? debts,
     List<PlanRule>? rules,
     double? personalSpending,
+    List<PlanExpense>? personalCategories,
     DateTime? updatedAt,
   }) {
     return MoneyPlanModel(
@@ -852,6 +860,7 @@ class MoneyPlanModel extends Equatable {
       debts: debts ?? this.debts,
       rules: rules ?? this.rules,
       personalSpending: personalSpending ?? this.personalSpending,
+      personalCategories: personalCategories ?? this.personalCategories,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -891,6 +900,8 @@ class MoneyPlanModel extends Equatable {
       debts: mapList(json['debts'], PlanDebt.fromJson),
       rules: mapList(json['rules'], PlanRule.fromJson),
       personalSpending: (json['personal_spending'] ?? 0).toDouble(),
+      personalCategories:
+          mapList(json['personal_categories'], PlanExpense.fromJson),
       updatedAt: json['updated_at'] != null
           ? DateTime.tryParse(json['updated_at'])
           : null,
@@ -926,6 +937,7 @@ class MoneyPlanModel extends Equatable {
       'debts': listToMap(debts),
       'rules': listToMap(rules),
       'personal_spending': personalSpending,
+      'personal_categories': listToMap(personalCategories),
       'updated_at': (updatedAt ?? DateTime.now()).toIso8601String(),
     };
   }
@@ -1011,6 +1023,7 @@ class MoneyPlanModel extends Equatable {
         debts,
         rules,
         personalSpending,
+        personalCategories,
         updatedAt,
       ];
 }

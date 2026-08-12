@@ -65,6 +65,12 @@ class SmsCubit extends Cubit<SmsState> {
     }
   }
 
+  /// Pending unsynced credit/debit SMS from the last [days] days.
+  Future<List<SmsMessageModel>> getPendingUnsyncedRecent({int days = 5}) async {
+    final since = DateTime.now().subtract(Duration(days: days));
+    return _repository.getPendingUnsyncedSince(since);
+  }
+
   Future<SmsImportResult?> scanInbox() async {
     try {
       final result = await _importService.importFromInbox();

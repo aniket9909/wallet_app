@@ -182,6 +182,24 @@ class SmsDatabaseHelper {
     return result.map((map) => SmsMessageModel.fromMap(map)).toList();
   }
 
+  /// Pending (unsynced) credit/debit SMS since [since].
+  Future<List<SmsMessageModel>> getPendingUnsyncedSince(DateTime since) async {
+    final db = await database;
+    final result = await db.query(
+      'sms_messages',
+      where:
+          'is_credit_debit = ? AND is_read = ? AND status = ? AND date >= ?',
+      whereArgs: [
+        1,
+        0,
+        SmsStatus.pending.name,
+        since.millisecondsSinceEpoch,
+      ],
+      orderBy: 'date DESC',
+    );
+    return result.map((map) => SmsMessageModel.fromMap(map)).toList();
+  }
+
   Future<void> close() async {
     final db = await database;
     await db.close();

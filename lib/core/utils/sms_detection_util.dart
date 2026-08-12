@@ -2,74 +2,104 @@ class SmsDetectionUtil {
   /// TEMP TEST: any SMS from this number is treated as a debit transaction.
   static const String testSenderDigits = '7678029909';
 
+  /// Currency + amount: supports `Rs.19.40`, `Rs 19.40`, `INR1,234.50`, `₹19.40`.
+  static final RegExp amountRegex = RegExp(
+    r'(?:(?:inr|rs|rupees?)\.?\s*|₹\s*)([0-9]+(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)',
+    caseSensitive: false,
+  );
+
+  /// Fallback when currency is omitted: `amount 19.40` / `txn of 19.40`.
+  static final RegExp amountFallbackRegex = RegExp(
+    r'(?:amount|amt|txn(?:\s+of)?|of)\s*(?:is\s*)?(?:inr|rs\.?|₹)?\s*([0-9]+(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)',
+    caseSensitive: false,
+  );
+
   static bool isTestSender(String address) {
     final digits = address.replaceAll(RegExp(r'\D'), '');
     return digits.endsWith(testSenderDigits);
   }
 
-  /// Checks if SMS is a credit/debit transaction and extracts details
+  /// Checks if SMS is a credit/debit transaction and extracts details.
   static SmsDetectionResult? detectCreditDebit(String body, {String? address}) {
     // TEMP TEST: accept SMS from test number even without bank keywords.
     if (address != null && isTestSender(address)) {
-      final amountMatch = RegExp(
-        r'(inr|rs\.?|₹|rupees?)\s*([0-9,]+\.?[0-9]*)',
-        caseSensitive: false,
-      ).firstMatch(body);
-      final amount = amountMatch != null
-          ? double.tryParse((amountMatch.group(2) ?? '').replaceAll(',', ''))
-          : 1.0;
+      final amount = extractAmount(body) ?? 1.0;
       return SmsDetectionResult(
         isCreditDebit: true,
         isCredit: false,
-        amount: amount ?? 1.0,
+        amount: amount,
         transactionType: 'debit',
       );
     }
 
     final lower = body.toLowerCase();
-    
-    // Check for credit keywords
-    final isCredit = lower.contains('credited') ||
-        lower.contains('cr.') ||
-        lower.contains('cr ') ||
-        lower.contains('received') ||
-        lower.contains('credit') ||
-        lower.contains('deposited');
-    
-    // Check for debit keywords
-    final isDebit = lower.contains('debited') ||
-        lower.contains('dr.') ||
-        lower.contains('dr ') ||
-        lower.contains('spent') ||
-        lower.contains('withdrawn') ||
-        lower.contains('debit') ||
-        lower.contains('paid');
-    
+
+    final isCredit = _matchesAny(lower, const [
+      r'\bcredited\b',
+      r'\bcr\.?\b',
+      r'\breceived\b',
+      r'\bcredit(?:ed)?\b',
+      r'\bdeposited\b',
+      r'\badded\s+to\b',
+      r'\bmoney\s+received\b',
+    ]);
+
+    // Includes UPI "Sent Rs…" Kotak/SBI style messages.
+    final isDebit = _matchesAny(lower, const [
+      r'\bdebited\b',
+      r'\bdr\.?\b',
+      r'\bspent\b',
+      r'\bwithdrawn\b',
+      r'\bdebit(?:ed)?\b',
+      r'\bpaid\b',
+      r'\bsent\b',
+      r'\btransfer(?:red)?\b',
+      r'\bpurchase(?:d)?\b',
+      r'\bpayment\b',
+      r'\bwithdraw(?:al|n)?\b',
+      r'\bupi\s+(?:ref|txn|payment)\b',
+      r'\bcharged\b',
+    ]);
+
     if (!isCredit && !isDebit) {
-      return null; // Not a credit/debit SMS
+      return null;
     }
-    
-    // Extract amount
-    final amountRegex = RegExp(r'(inr|rs\.?|₹|rupees?)\s*([0-9,]+\.?[0-9]*)',
-        caseSensitive: false);
-    final match = amountRegex.firstMatch(body);
-    if (match == null) {
-      return null; // No amount found
-    }
-    
-    final raw = match.group(2) ?? '';
-    final normalized = raw.replaceAll(',', '');
-    final amount = double.tryParse(normalized);
+
+    final amount = extractAmount(body);
     if (amount == null) {
-      return null; // Invalid amount
+      return null;
     }
-    
+
+    // Prefer debit when both match (e.g. "credit card … paid").
+    final treatAsCredit = isCredit && !isDebit;
+
     return SmsDetectionResult(
       isCreditDebit: true,
-      isCredit: isCredit,
+      isCredit: treatAsCredit,
       amount: amount,
-      transactionType: isCredit ? 'credit' : 'debit',
+      transactionType: treatAsCredit ? 'credit' : 'debit',
     );
+  }
+
+  /// Extracts the first plausible money amount from SMS body.
+  static double? extractAmount(String body) {
+    for (final regex in [amountRegex, amountFallbackRegex]) {
+      for (final match in regex.allMatches(body)) {
+        final raw = (match.group(1) ?? '').replaceAll(',', '');
+        final amount = double.tryParse(raw);
+        if (amount != null && amount > 0 && amount < 100000000) {
+          return amount;
+        }
+      }
+    }
+    return null;
+  }
+
+  static bool _matchesAny(String lower, List<String> patterns) {
+    for (final p in patterns) {
+      if (RegExp(p).hasMatch(lower)) return true;
+    }
+    return false;
   }
 
   /// Extracts the name that appears after "from" in bank SMS text.
@@ -101,18 +131,23 @@ class SmsDetectionUtil {
 
   /// Tries to extract merchant / payee name from other common bank SMS formats.
   static String? extractPayeeName(String body) {
-    final fromName = extractFromName(body);
-    if (fromName != null) return fromName;
-
     final patterns = <RegExp>[
+      // Prefer full UPI VPA when present: bdpg2.iruts@sbi
+      RegExp(r'\b([A-Za-z0-9][A-Za-z0-9._-]{1,40}@[A-Za-z0-9]+)\b'),
+      // "Sent Rs.19.40 from Kotak Bank AC to payee on …"
+      RegExp(
+        r'(?:paid|sent|transfer(?:red)?|trf|debited|credited)\b[\s\S]{0,80}?\bto\s+'
+        r'([A-Za-z0-9][A-Za-z0-9 .&/@_-]{1,48}?)(?=\s+on\b|\s+at\b|\s+ref\b|\s+avl\b|\s+upi\b|,|$)',
+        caseSensitive: false,
+      ),
       RegExp(
         r'(?:paid|sent|transfer(?:red)?|trf|debited|credited)\s+to\s+'
-        r'([A-Za-z0-9][A-Za-z0-9 .&/@_-]{1,48}?)(?:\s+on|\s+at|\s+ref|\s+avl|\.|,|\s+bal|\s+upi|$)',
+        r'([A-Za-z0-9][A-Za-z0-9 .&/@_-]{1,48}?)(?=\s+on\b|\s+at\b|\s+ref\b|\s+avl\b|,|$)',
         caseSensitive: false,
       ),
       RegExp(r'upi[/-](?:\d+/)*([^/\n]+)', caseSensitive: false),
       RegExp(
-        r'\bat\s+([A-Za-z0-9][A-Za-z0-9 .&_-]{1,48}?)(?:\s+on|\s+ref|\.|,|\s+bal|$)',
+        r'\bat\s+([A-Za-z0-9][A-Za-z0-9 .&_-]{1,48}?)(?=\s+on\b|\s+ref\b|,|\s+bal\b|$)',
         caseSensitive: false,
       ),
       RegExp(
@@ -120,10 +155,9 @@ class SmsDetectionUtil {
         caseSensitive: false,
       ),
       RegExp(
-        r'towards?\s+([A-Za-z0-9][A-Za-z0-9 .&_-]{1,48}?)(?:\.|,|\s+on|$)',
+        r'towards?\s+([A-Za-z0-9][A-Za-z0-9 .&_-]{1,48}?)(?=\.|,|\s+on\b|$)',
         caseSensitive: false,
       ),
-      RegExp(r'\b([A-Za-z0-9._-]{2,30}@[A-Za-z0-9]+)\b'),
     ];
 
     for (final pattern in patterns) {
@@ -135,7 +169,7 @@ class SmsDetectionUtil {
       if (cleaned != null) return cleaned;
     }
 
-    return null;
+    return extractFromName(body);
   }
 
   static String? _cleanExtractedName(String raw) {
@@ -143,6 +177,14 @@ class SmsDetectionUtil {
         .replaceAll(RegExp(r'\s+'), ' ')
         .replaceAll(RegExp(r'^[:\-\s]+'), '')
         .replaceAll(RegExp(r'[.\s]+$'), '')
+        .trim();
+
+    // Drop trailing bank account fluff: "Kotak Bank AC"
+    name = name
+        .replaceAll(
+          RegExp(r'\b(?:bank\s+)?a/?c(?:ct)?\b.*$', caseSensitive: false),
+          '',
+        )
         .trim();
 
     if (name.length < 2 || name.length > 60) return null;
@@ -163,6 +205,11 @@ class SmsDetectionUtil {
       'the',
       'your',
       'bank',
+      'kotak',
+      'sbi',
+      'hdfc',
+      'icici',
+      'axis',
     };
     if (skip.contains(lower)) return null;
     if (RegExp(r'^\d+$').hasMatch(name)) return null;
@@ -179,10 +226,11 @@ class SmsDetectionUtil {
     final entered = userDescription?.trim();
     if (entered != null && entered.isNotEmpty) return entered;
 
-    final fromName = extractFromName(smsBody);
-    if (fromName != null && fromName.isNotEmpty) {
-      return 'SMS from $fromName';
-    }
+    final suggested = suggestedSyncDescription(
+      smsBody: smsBody,
+      transactionType: transactionType,
+    );
+    if (suggested != null && suggested.isNotEmpty) return suggested;
 
     return transactionType == 'credit' ? 'SMS credit' : 'SMS debit';
   }
@@ -192,6 +240,12 @@ class SmsDetectionUtil {
     required String smsBody,
     String? transactionType,
   }) {
+    final payee = extractPayeeName(smsBody);
+    if (payee != null && payee.isNotEmpty) {
+      if (transactionType == 'credit') return 'SMS from $payee';
+      return 'SMS to $payee';
+    }
+
     final fromName = extractFromName(smsBody);
     if (fromName != null && fromName.isNotEmpty) {
       return 'SMS from $fromName';
@@ -213,4 +267,3 @@ class SmsDetectionResult {
     required this.transactionType,
   });
 }
-

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../data/models/money_plan_model.dart';
 import '../../data/models/transaction_model_new.dart';
 import '../../presentation/screens/money_planner/money_plan_section_screen.dart';
 import '../../presentation/screens/transaction_detail_screen.dart';
@@ -21,6 +22,17 @@ class PlannerSections {
     goals,
     debt,
     personal,
+  ];
+
+  /// Order used in SMS sync / add-transaction pickers.
+  static const pickerOrder = <String>[
+    essentials,
+    investment,
+    emergency,
+    goals,
+    debt,
+    personal,
+    income,
   ];
 
   static String normalize(String? raw) {
@@ -76,6 +88,174 @@ class PlannerSections {
       default:
         return const Color(0xFF6366F1);
     }
+  }
+}
+
+/// Shared Money Planner subcategory lists for SMS sync + manual transactions.
+class PlannerCategories {
+  static const Map<String, List<String>> defaultSubtypes = {
+    PlannerSections.essentials: [
+      'Housing/Rent',
+      'Electricity',
+      'Internet/Phone',
+      'Food & Groceries',
+      'Transportation',
+      'Healthcare',
+      'Insurance',
+      'Family responsibilities',
+      'Other essential',
+    ],
+    PlannerSections.investment: [
+      'SIP',
+      'Stocks',
+      'Mutual funds',
+      'Retirement',
+      'Other investment',
+    ],
+    PlannerSections.emergency: [
+      'Monthly contribution',
+      'Top-up',
+      'Other emergency',
+    ],
+    PlannerSections.goals: [
+      'Gold',
+      'Furniture',
+      'Vacation',
+      'Laptop',
+      'Bike',
+      'House down payment',
+      'Education',
+      'Wedding',
+      'Car',
+      'Other goal',
+    ],
+    PlannerSections.debt: [
+      'Loan EMI',
+      'Credit card',
+      'Personal debt',
+      'Other debt',
+    ],
+    PlannerSections.personal: [
+      'Entertainment',
+      'Dining out',
+      'Hobbies',
+      'Shopping',
+      'Lifestyle',
+      'Other personal',
+    ],
+    PlannerSections.income: [
+      'Salary',
+      'Other income',
+      'Refund',
+      'Transfer in',
+    ],
+  };
+
+  static String defaultSectionFor({required bool isCredit}) =>
+      isCredit ? PlannerSections.income : PlannerSections.essentials;
+
+  static List<String> subtypesFor(
+    String section, {
+    MoneyPlanModel? plan,
+    String? extraSubtype,
+  }) {
+    final key = PlannerSections.normalize(section);
+    final defaults =
+        List<String>.from(defaultSubtypes[key] ?? const ['Other']);
+
+    if (plan != null) {
+      switch (key) {
+        case PlannerSections.essentials:
+          for (final e in plan.expenses) {
+            if (e.name.isNotEmpty && !defaults.contains(e.name)) {
+              defaults.insert(0, e.name);
+            }
+          }
+          break;
+        case PlannerSections.investment:
+          for (final i in plan.investments) {
+            if (i.name.isNotEmpty && !defaults.contains(i.name)) {
+              defaults.insert(0, i.name);
+            }
+          }
+          break;
+        case PlannerSections.goals:
+          for (final g in plan.goals) {
+            if (g.name.isNotEmpty && !defaults.contains(g.name)) {
+              defaults.insert(0, g.name);
+            }
+          }
+          break;
+        case PlannerSections.debt:
+          for (final d in plan.debts) {
+            if (d.name.isNotEmpty && !defaults.contains(d.name)) {
+              defaults.insert(0, d.name);
+            }
+          }
+          break;
+        case PlannerSections.personal:
+          for (final p in plan.personalCategories) {
+            if (p.name.isNotEmpty && !defaults.contains(p.name)) {
+              defaults.insert(0, p.name);
+            }
+          }
+          break;
+      }
+    }
+
+    if (extraSubtype != null &&
+        extraSubtype.isNotEmpty &&
+        !defaults.contains(extraSubtype)) {
+      defaults.insert(0, extraSubtype);
+    }
+
+    return defaults;
+  }
+
+  /// Ensures every default subcategory exists as an editable plan item.
+  static List<T> withDefaultSubtypes<T>({
+    required String section,
+    required List<T> existing,
+    required String Function(T) nameOf,
+    required T Function(String name) createMissing,
+  }) {
+    final result = List<T>.from(existing);
+    final names = {for (final item in result) nameOf(item)};
+    for (final name
+        in defaultSubtypes[PlannerSections.normalize(section)] ??
+            const <String>[]) {
+      if (!names.contains(name)) {
+        result.add(createMissing(name));
+      }
+    }
+    return result;
+  }
+
+  static InvestmentType investmentTypeFor(String name) {
+    final v = name.trim().toLowerCase();
+    if (v.contains('stock')) return InvestmentType.stocks;
+    if (v.contains('mutual')) return InvestmentType.mutualFunds;
+    if (v.contains('retire')) return InvestmentType.retirement;
+    if (v.contains('sip')) return InvestmentType.sip;
+    return InvestmentType.other;
+  }
+
+  static GoalType goalTypeFor(String name) {
+    final v = name.trim().toLowerCase();
+    if (v.contains('gold')) return GoalType.gold;
+    if (v.contains('emergency')) return GoalType.emergency;
+    return GoalType.standard;
+  }
+
+  static String formatNote({
+    required String section,
+    required String subtype,
+    String? extra,
+  }) {
+    final header =
+        'Planner: ${PlannerSections.normalize(section)} · Subtype: $subtype';
+    if (extra == null || extra.trim().isEmpty) return header;
+    return '$header\n${extra.trim()}';
   }
 }
 

@@ -8,6 +8,7 @@ import '../widgets/settings_section.dart';
 import '../widgets/sms_setup_section.dart';
 import '../../routes/app_routes.dart';
 import '../../core/utils/auth_bootstrap.dart';
+import '../widgets/pending_sms_review_stack.dart';
 import 'account_last_digits_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -351,6 +352,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             if (confirm == true && context.mounted) {
               AuthBootstrap.reset(context);
+              PendingSmsReviewGate.reset();
               await FirebaseAuth.instance.signOut();
               if (context.mounted) {
                 Navigator.pushReplacementNamed(context, AppRoutes.login);
