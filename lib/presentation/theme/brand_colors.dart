@@ -59,7 +59,7 @@ class BrandLogo extends StatelessWidget {
 
   const BrandLogo({super.key, this.width = 240});
 
-  static const assetPath = 'assets/logo/logo.jpeg';
+  static const assetPath = 'assets/logo/money_mate_app_icon.png';
 
   @override
   Widget build(BuildContext context) {

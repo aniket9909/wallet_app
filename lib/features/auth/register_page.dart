@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../routes/app_routes.dart';
 import '../../data/auth_repository.dart' as auth_repo;
 import '../../core/utils/auth_bootstrap.dart';
+import '../../core/utils/permission_setup_gate.dart';
 import '../../presentation/theme/brand_colors.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -55,7 +56,7 @@ class _RegisterPageState extends State<RegisterPage> {
       if (!mounted) return;
 
       if (ok) {
-        Navigator.pushReplacementNamed(context, AppRoutes.home);
+        await PermissionSetupGate.navigateAfterAuth(context);
       } else {
         setState(() {
           _errorMessage =

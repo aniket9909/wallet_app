@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../data/auth_repository.dart' as auth_repo;
 import '../../routes/app_routes.dart';
 import '../../core/utils/auth_bootstrap.dart';
+import '../../core/utils/permission_setup_gate.dart';
 import '../../presentation/theme/brand_colors.dart';
 
 class LoginPage extends StatefulWidget {
@@ -49,7 +50,7 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
 
       if (ok) {
-        Navigator.pushReplacementNamed(context, AppRoutes.home);
+        await PermissionSetupGate.navigateAfterAuth(context);
       } else {
         setState(() {
           _errorMessage = 'Login succeeded but could not load your data.';
@@ -84,7 +85,7 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
 
       if (ok) {
-        Navigator.pushReplacementNamed(context, AppRoutes.home);
+        await PermissionSetupGate.navigateAfterAuth(context);
       } else {
         setState(() {
           _errorMessage = 'Sign-in succeeded but could not load your data.';

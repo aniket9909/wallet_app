@@ -4,6 +4,8 @@ class AppRoutes {
   static const String register = "/register";
   static const String forgotPassword = "/forgot-password";
   static const String home = "/home";
+  static const String onboarding = "/onboarding";
+  static const String permissions = "/permissions";
   static const String partialTransactions = "/partial-transactions";
   static const String smsMessages = "/sms-messages";
   

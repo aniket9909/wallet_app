@@ -7,7 +7,16 @@ import '../../widgets/money_planner/money_plan_widgets.dart';
 import '../../theme/brand_colors.dart';
 
 class MoneyPlanSetupWizard extends StatefulWidget {
-  const MoneyPlanSetupWizard({super.key});
+  final bool isOnboarding;
+  final VoidCallback? onFinished;
+  final VoidCallback? onSkipped;
+
+  const MoneyPlanSetupWizard({
+    super.key,
+    this.isOnboarding = false,
+    this.onFinished,
+    this.onSkipped,
+  });
 
   @override
   State<MoneyPlanSetupWizard> createState() => _MoneyPlanSetupWizardState();
@@ -196,6 +205,8 @@ class _MoneyPlanSetupWizardState extends State<MoneyPlanSetupWizard> {
   Future<void> _finish() async {
     final plan = _buildPlan(complete: true);
     await context.read<MoneyPlanCubit>().completeSetup(plan);
+    if (!mounted) return;
+    widget.onFinished?.call();
   }
 
   void _addGoal() {
@@ -282,10 +293,24 @@ class _MoneyPlanSetupWizardState extends State<MoneyPlanSetupWizard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Center(child: BrandLogo(width: 120)),
+                  if (widget.isOnboarding)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: widget.onSkipped,
+                        child: const Text('Skip this step'),
+                      ),
+                    ),
+                  Center(
+                    child: widget.isOnboarding
+                        ? const BrandAppIcon(size: 72)
+                        : const BrandLogo(width: 120),
+                  ),
                   const SizedBox(height: 12),
                   Text(
-                    'All-in-One Money Planner',
+                    widget.isOnboarding
+                        ? 'Set up your monthly budget'
+                        : 'All-in-One Money Planner',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -295,14 +320,18 @@ class _MoneyPlanSetupWizardState extends State<MoneyPlanSetupWizard> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Step ${_step + 1} of $_totalSteps',
+                    widget.isOnboarding
+                        ? 'Step 3 of 3 · Monthly budget'
+                        : 'Step ${_step + 1} of $_totalSteps',
                     style: TextStyle(color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 12),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: LinearProgressIndicator(
-                      value: (_step + 1) / _totalSteps,
+                      value: widget.isOnboarding
+                          ? (2 + ((_step + 1) / _totalSteps)) / 3
+                          : (_step + 1) / _totalSteps,
                       minHeight: 6,
                       backgroundColor: primary.withOpacity(0.12),
                     ),

@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../routes/app_routes.dart';
 import '../core/utils/auth_bootstrap.dart';
+import '../core/utils/permission_setup_gate.dart';
 import '../presentation/theme/brand_colors.dart';
 
 class SplashScreenNew extends StatefulWidget {
@@ -30,7 +31,7 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
       final ok = await AuthBootstrap.setup(context);
       if (!mounted) return;
       if (ok) {
-        Navigator.pushReplacementNamed(context, AppRoutes.home);
+        await PermissionSetupGate.navigateAfterAuth(context);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

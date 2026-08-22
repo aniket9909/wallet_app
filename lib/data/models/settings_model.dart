@@ -8,6 +8,8 @@ class SettingsModel extends Equatable {
   final UserProfile profile;
   final bool darkMode;
   final String currency;
+  final bool onboardingComplete;
+  final bool permissionsSetupComplete;
 
   const SettingsModel({
     required this.notificationsEnabled,
@@ -17,6 +19,8 @@ class SettingsModel extends Equatable {
     required this.profile,
     this.darkMode = false,
     this.currency = '₹',
+    this.onboardingComplete = false,
+    this.permissionsSetupComplete = false,
   });
 
   factory SettingsModel.fromJson(Map<dynamic, dynamic> json) {
@@ -36,6 +40,8 @@ class SettingsModel extends Equatable {
           : const UserProfile(name: '', email: ''),
       darkMode: json['dark_mode'] ?? false,
       currency: json['currency'] ?? '₹',
+      onboardingComplete: json['onboarding_complete'] ?? false,
+      permissionsSetupComplete: json['permissions_setup_complete'] ?? false,
     );
   }
 
@@ -48,6 +54,8 @@ class SettingsModel extends Equatable {
       'profile': profile.toJson(),
       'dark_mode': darkMode,
       'currency': currency,
+      'onboarding_complete': onboardingComplete,
+      'permissions_setup_complete': permissionsSetupComplete,
     };
   }
 
@@ -59,6 +67,8 @@ class SettingsModel extends Equatable {
     UserProfile? profile,
     bool? darkMode,
     String? currency,
+    bool? onboardingComplete,
+    bool? permissionsSetupComplete,
   }) {
     return SettingsModel(
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
@@ -68,6 +78,9 @@ class SettingsModel extends Equatable {
       profile: profile ?? this.profile,
       darkMode: darkMode ?? this.darkMode,
       currency: currency ?? this.currency,
+      onboardingComplete: onboardingComplete ?? this.onboardingComplete,
+      permissionsSetupComplete:
+          permissionsSetupComplete ?? this.permissionsSetupComplete,
     );
   }
 
@@ -80,6 +93,8 @@ class SettingsModel extends Equatable {
         profile,
         darkMode,
         currency,
+        onboardingComplete,
+        permissionsSetupComplete,
       ];
 }
 
