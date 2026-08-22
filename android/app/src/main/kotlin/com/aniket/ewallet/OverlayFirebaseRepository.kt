@@ -8,6 +8,10 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 data class OverlayAccount(
@@ -27,10 +31,7 @@ data class OverlayFirebaseData(
 
 /**
  * Loads bank accounts + planner categories for the SMS overlay.
- *
- * Primary: SharedPreferences cache written by Flutter from Firebase.
- * Refresh: Firebase Realtime Database REST (same paths as Flutter) when a
- * cached uid + idToken are available.
+ * Local SQLite + SharedPreferences first; Firebase REST refresh when online.
  */
 object OverlayFirebaseRepository {
     private const val TAG = "OverlayFirebaseRepo"
@@ -64,18 +65,42 @@ object OverlayFirebaseRepository {
             .putString(KEY_TOKEN, idToken)
             .putString(KEY_DB_URL, dbUrl ?: DEFAULT_DB_URL)
             .apply()
-        Log.d(TAG, "Overlay cache saved")
+
+        LocalAppDatabase.ensureInitialized(context)
+        LocalAppDatabase.replaceAccountsFromArray(context, accountsJson)
+        try {
+            val cats = JSONArray(categoriesJson)
+            if (cats.length() > 0) {
+                val names = mutableListOf<String>()
+                for (i in 0 until cats.length()) names.add(cats.optString(i))
+                LocalAppDatabase.replaceCategories(context, names)
+            }
+        } catch (_: Exception) {
+        }
+        if (!plannerSubtypesJson.isNullOrBlank()) {
+            LocalAppDatabase.replaceSubcategoriesFromJson(context, plannerSubtypesJson)
+        }
+        Log.d(TAG, "Overlay cache saved to prefs + sqlite")
     }
 
     fun fetch(context: Context, transactionType: String): OverlayFirebaseData {
-        val refreshed = tryRefreshFromFirebaseRest(context)
+        LocalAppDatabase.ensureInitialized(context)
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val accounts = parseAccounts(prefs.getString(KEY_ACCOUNTS, null))
-        val subtypesMap = OverlayPlannerData.parseSubtypesFromJson(
-            prefs.getString(KEY_SUBTYPES, null),
-        )
+
+        var accounts = loadLocalAccounts(context, prefs)
+        var subtypesMap = loadLocalSubtypes(context, prefs)
+
         val uid = prefs.getString(KEY_UID, null)
         val loggedIn = !uid.isNullOrBlank()
+
+        val refreshed = tryRefreshFromFirebaseRest(context)
+        if (refreshed) {
+            val updatedAccounts = LocalAppDatabase.loadAccounts(context)
+            if (updatedAccounts.isNotEmpty()) accounts = updatedAccounts
+            val updatedSubtypes = loadLocalSubtypes(context, prefs)
+            if (updatedSubtypes.values.any { it.isNotEmpty() }) subtypesMap = updatedSubtypes
+        }
+
         val isCredit = transactionType.equals("credit", ignoreCase = true)
         val sections = if (isCredit) {
             listOf("Income") + OverlayPlannerData.sections.filter { it != "Income" }
@@ -83,13 +108,60 @@ object OverlayFirebaseRepository {
             OverlayPlannerData.sections.filter { it != "Income" }
         }
 
+        val source = when {
+            refreshed -> "firebase"
+            accounts.isNotEmpty() && LocalAppDatabase.file(context).exists() -> "sqlite"
+            accounts.isNotEmpty() -> "cache"
+            else -> "empty"
+        }
+
+        Log.d(TAG, "fetch source=$source accounts=${accounts.size} sections=${subtypesMap.size}")
+
         return OverlayFirebaseData(
             accounts = accounts,
             plannerSections = sections,
             subtypesBySection = subtypesMap,
             loggedIn = loggedIn,
-            source = if (refreshed) "firebase" else "cache",
+            source = source,
         )
+    }
+
+    private fun loadLocalAccounts(
+        context: Context,
+        prefs: android.content.SharedPreferences,
+    ): List<OverlayAccount> {
+        val sqlite = LocalAppDatabase.loadAccounts(context)
+        val cached = parseAccounts(prefs.getString(KEY_ACCOUNTS, null))
+        if (sqlite.isEmpty()) return cached
+        if (cached.isEmpty()) return sqlite
+        val merged = linkedMapOf<String, OverlayAccount>()
+        for (a in cached) merged[a.id.ifBlank { a.name }] = a
+        for (a in sqlite) merged[a.id.ifBlank { a.name }] = a
+        return merged.values.sortedBy { it.name.lowercase() }
+    }
+
+    private fun loadLocalSubtypes(
+        context: Context,
+        prefs: android.content.SharedPreferences,
+    ): Map<String, List<String>> {
+        val sqlite = LocalAppDatabase.loadSubcategories(context)
+        val cached = OverlayPlannerData.parseSubtypesFromJson(
+            prefs.getString(KEY_SUBTYPES, null),
+        )
+        if (sqlite.isEmpty()) return cached
+        if (cached.isEmpty()) return sqlite
+        val merged = OverlayPlannerData.parseSubtypesFromJson(null).toMutableMap()
+        for ((section, names) in cached) {
+            val list = merged.getOrPut(section) { mutableListOf() }.toMutableList()
+            for (name in names) if (!list.contains(name)) list.add(name)
+            merged[section] = list
+        }
+        for ((section, names) in sqlite) {
+            val list = merged.getOrPut(section) { mutableListOf() }.toMutableList()
+            for (name in names) if (!list.contains(name)) list.add(0, name)
+            merged[section] = list
+        }
+        return merged
     }
 
     private fun tryRefreshFromFirebaseRest(context: Context): Boolean {
@@ -115,6 +187,14 @@ object OverlayFirebaseRepository {
                 .putString(KEY_CATEGORIES, JSONArray(categories.toList()).toString())
                 .putString(KEY_SUBTYPES, subtypesJson)
                 .apply()
+
+            if (!accountsJson.isNullOrBlank() && accountsJson != "null") {
+                LocalAppDatabase.replaceAccountsFromJson(context, accountsJson)
+            }
+            if (categories.isNotEmpty()) {
+                LocalAppDatabase.replaceCategories(context, categories)
+            }
+            LocalAppDatabase.replaceSubcategoriesFromJson(context, subtypesJson)
             Log.d(TAG, "Refreshed overlay data from Firebase REST")
             true
         } catch (e: Exception) {
@@ -147,7 +227,6 @@ object OverlayFirebaseRepository {
         if (raw.isNullOrBlank() || raw == "null") return emptyList()
         val out = mutableListOf<OverlayAccount>()
         try {
-            // Flutter cache is a JSON array; RTDB REST is a JSON object map.
             val trimmed = raw.trim()
             if (trimmed.startsWith("[")) {
                 val arr = JSONArray(trimmed)
@@ -186,21 +265,6 @@ object OverlayFirebaseRepository {
             Log.e(TAG, "parseAccounts failed: ${e.message}")
         }
         return out.sortedBy { it.name.lowercase() }
-    }
-
-    private fun parseCategories(raw: String?): List<String> {
-        if (raw.isNullOrBlank() || raw == "null") return emptyList()
-        val out = mutableListOf<String>()
-        try {
-            val arr = JSONArray(raw)
-            for (i in 0 until arr.length()) {
-                val value = arr.optString(i).trim()
-                if (value.isNotEmpty()) out.add(value)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "parseCategories failed: ${e.message}")
-        }
-        return out
     }
 
     private fun parseExpenseTypesJson(raw: String?, out: MutableSet<String>) {

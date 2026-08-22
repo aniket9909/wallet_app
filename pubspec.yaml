@@ -107,7 +107,10 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/logo/dark_logo.jpeg"
+  image_path: "assets/logo/money_mate_app_icon.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/logo/money_mate_app_icon.png"
+  remove_alpha_ios: true
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

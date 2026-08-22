@@ -46,7 +46,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     _settingsSubscription = _repository.watchSettings().listen(
       (settings) {
         emit(SettingsLoaded(settings));
-        OverlayCacheService.syncFromState(settings: settings);
+        OverlayCacheService.syncFromLocalDatabase();
       },
       onError: (error) {
         emit(SettingsError(error.toString()));

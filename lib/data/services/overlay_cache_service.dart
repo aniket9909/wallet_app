@@ -5,20 +5,40 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/database/local_app_database.dart';
 import '../models/account_model.dart';
 import '../models/money_plan_model.dart';
 import '../models/settings_model.dart';
 import '../../presentation/widgets/sms_sync_sheet.dart';
 
-/// Pushes Firebase accounts + planner subtypes to native SharedPreferences so the
-/// SMS overlay can sync directly without opening the app.
+/// Pushes local SQLite + state to native SharedPreferences/SQLite so the
+/// SMS overlay works when the Flutter app is closed (online or offline).
 class OverlayCacheService {
   static const MethodChannel _channel = MethodChannel('com.aniket.ewallet/sms');
+
+  /// Reads from [LocalAppDatabase] and pushes to native overlay cache.
+  static Future<void> syncFromLocalDatabase() async {
+    if (!Platform.isAndroid) return;
+
+    final db = LocalAppDatabase.instance;
+    final accounts = await db.getAccounts();
+    final settings = await db.loadSettings();
+    final plan = await db.loadMoneyPlan();
+    final subtypesFromDb = await db.getSubcategories();
+
+    await syncFromState(
+      accounts: accounts,
+      settings: settings,
+      moneyPlan: plan,
+      extraSubtypes: subtypesFromDb,
+    );
+  }
 
   static Future<void> syncFromState({
     List<AccountModel>? accounts,
     SettingsModel? settings,
     MoneyPlanModel? moneyPlan,
+    Map<String, List<String>>? extraSubtypes,
   }) async {
     if (!Platform.isAndroid) return;
 
@@ -27,7 +47,7 @@ class OverlayCacheService {
       categories.addAll(settings.expenseTypes);
     }
 
-    final subtypesMap = _buildSubtypesMap(moneyPlan);
+    final subtypesMap = _buildSubtypesMap(moneyPlan, extraSubtypes);
     if (settings != null) {
       for (final section in subtypesMap.keys) {
         categories.addAll(subtypesMap[section] ?? const []);
@@ -41,6 +61,7 @@ class OverlayCacheService {
             'name': a.name,
             'type': a.type,
             'last_digits': a.lastDigits,
+            'balance': a.balance,
           },
         )
         .toList();
@@ -70,10 +91,23 @@ class OverlayCacheService {
     } catch (_) {}
   }
 
-  static Map<String, List<String>> _buildSubtypesMap(MoneyPlanModel? plan) {
+  static Map<String, List<String>> _buildSubtypesMap(
+    MoneyPlanModel? plan,
+    Map<String, List<String>>? extraSubtypes,
+  ) {
     final map = <String, List<String>>{};
     for (final entry in SmsSyncSheet.plannerSubtypes.entries) {
       map[entry.key] = List<String>.from(entry.value);
+    }
+    if (extraSubtypes != null) {
+      for (final entry in extraSubtypes.entries) {
+        final list = map.putIfAbsent(entry.key, () => <String>[]);
+        for (final name in entry.value) {
+          if (name.isNotEmpty && !list.contains(name)) {
+            list.insert(0, name);
+          }
+        }
+      }
     }
     if (plan == null) return map;
 
@@ -90,6 +124,7 @@ class OverlayCacheService {
     merge('Investment', plan.investments.map((i) => i.name));
     merge('Goals', plan.goals.map((g) => g.name));
     merge('Debt & EMI', plan.debts.map((d) => d.name));
+    merge('Personal', plan.personalCategories.map((e) => e.name));
     return map;
   }
 }

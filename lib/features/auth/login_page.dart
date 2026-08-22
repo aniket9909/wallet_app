@@ -121,7 +121,7 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 24),
                   
                   Center(
-                    child: const BrandLogo(width: 220)
+                    child: const BrandAppIcon(size: 120)
                         .animate()
                         .scale(duration: 600.ms, curve: Curves.easeOut),
                   ),

@@ -77,7 +77,7 @@ class MoneyPlanCubit extends Cubit<MoneyPlanState> {
           plan: refreshed,
           snapshot: _engine.analyze(refreshed),
         ));
-        OverlayCacheService.syncFromState(moneyPlan: refreshed);
+        OverlayCacheService.syncFromLocalDatabase();
       },
       onError: (error) {
         emit(MoneyPlanError(error.toString()));

@@ -55,7 +55,7 @@ class AccountCubit extends Cubit<AccountState> {
     _accountSubscription = _repository.watchAccounts().listen(
       (accounts) {
         emit(AccountLoaded(accounts));
-        OverlayCacheService.syncFromState(accounts: accounts);
+        OverlayCacheService.syncFromLocalDatabase();
       },
       onError: (error) {
         emit(AccountError(error.toString()));

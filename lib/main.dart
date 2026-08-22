@@ -5,6 +5,9 @@ import 'firebase_options.dart';
 import 'routes/app_routes.dart';
 import 'routes/app_pages_new.dart';
 import 'presentation/theme/app_theme.dart';
+import 'core/database/local_app_database.dart';
+import 'data/services/offline_sync_service.dart';
+import 'data/services/overlay_cache_service.dart';
 
 // Data Layer
 import 'data/services/firebase_realtime_service.dart';
@@ -38,6 +41,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await LocalAppDatabase.instance.database;
 
   runApp(const MyApp());
 }
@@ -49,20 +53,33 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   late final SmsCoordinatorService _smsCoordinator;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _smsCoordinator = SmsCoordinatorService(navigatorKey: navigatorKey);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _smsCoordinator.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    final ctx = navigatorKey.currentContext;
+    if (ctx == null) return;
+    try {
+      OfflineSyncService.instance.flush(ctx.read<FirebaseRealtimeService>());
+      OverlayCacheService.syncFromLocalDatabase();
+    } catch (_) {}
   }
 
   @override

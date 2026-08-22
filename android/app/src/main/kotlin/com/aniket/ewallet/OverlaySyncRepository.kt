@@ -16,8 +16,8 @@ import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 /**
- * Writes a wallet transaction directly to Firebase RTDB from the SMS overlay
- * (no Flutter app open required).
+ * Writes a wallet transaction to Firebase RTDB from the SMS overlay.
+ * When offline, queues to the shared SQLite sync_queue for Flutter to flush.
  */
 object OverlaySyncRepository {
     private const val TAG = "OverlaySyncRepo"
@@ -38,9 +38,11 @@ object OverlaySyncRepository {
         val success: Boolean,
         val message: String,
         val transactionId: String? = null,
+        val queuedOffline: Boolean = false,
     )
 
     fun sync(context: Context, request: SyncRequest): SyncResult {
+        LocalAppDatabase.ensureInitialized(context)
         val prefs = context.getSharedPreferences(
             OverlayFirebaseRepository.PREFS_NAME,
             Context.MODE_PRIVATE,
@@ -50,58 +52,91 @@ object OverlaySyncRepository {
         val dbUrl = (prefs.getString(OverlayFirebaseRepository.KEY_DB_URL, null)
             ?: OverlayFirebaseRepository.DEFAULT_DB_URL).trimEnd('/')
 
-        if (uid.isNullOrBlank() || token.isNullOrBlank()) {
+        if (uid.isNullOrBlank()) {
             return SyncResult(false, "Not signed in. Open the app once while logged in.")
         }
 
-        return try {
-            val accountsRaw = httpGet("$dbUrl/users/$uid/accounts.json?auth=$token")
-            val accountId = findAccountId(accountsRaw, request.accountName)
-                ?: return SyncResult(false, "Account \"${request.accountName}\" not found in Firebase")
+        val localAccountId = LocalAppDatabase.findAccountId(context, request.accountName)
+        if (localAccountId == null &&
+            LocalAppDatabase.loadAccounts(context).none { it.name == request.accountName }
+        ) {
+            return SyncResult(false, "Account \"${request.accountName}\" not found locally")
+        }
 
-            val description = request.description?.takeIf { it.isNotBlank() }
-                ?: buildDescription(request.body, request.type)
-            val isoDate = formatIsoDate(request.dateMillis)
-            val txnType = if (request.type.equals("credit", true)) "credit" else "debit"
-            val note =
-                "Planner: ${request.plannerSection} · Subtype: ${request.subtype}\n${request.body}"
-
-            val txnJson = JSONObject().apply {
-                put("type", txnType)
-                put("amount", request.amount)
-                put("description", description)
-                put("category", request.subtype)
-                put("account", request.accountName)
-                put("date", isoDate)
-                put("note", note)
+        if (!token.isNullOrBlank()) {
+            try {
+                val online = syncToFirebase(context, request, uid, token, dbUrl, localAccountId)
+                if (online.success) return online
+                Log.w(TAG, "Online sync failed, queueing offline: ${online.message}")
+            } catch (e: Exception) {
+                Log.w(TAG, "Online sync error, queueing offline: ${e.message}")
             }
+        }
 
-            val pushResponse = httpPost(
-                "$dbUrl/users/$uid/transactions.json?auth=$token",
-                txnJson.toString(),
-            ) ?: return SyncResult(false, "Failed to create transaction")
-
-            val txnId = JSONObject(pushResponse).optString("name")
-            if (txnId.isBlank()) {
-                return SyncResult(false, "Firebase did not return a transaction id")
-            }
-
-            updateWallet(dbUrl, uid, token, request)
-            updateAccountBalance(dbUrl, uid, token, accountId, accountsRaw, request)
-
-            Log.d(TAG, "Synced transaction $txnId")
+        val accountId = localAccountId ?: request.accountName
+        val queued = LocalAppDatabase.enqueueTransaction(context, request, accountId)
+        return if (queued) {
             SyncResult(
                 success = true,
-                message = "₹${"%.2f".format(request.amount)} synced to ${request.plannerSection} · ${request.subtype}",
-                transactionId = txnId,
+                message = "Saved offline — will sync when internet is back",
+                queuedOffline = true,
             )
-        } catch (e: Exception) {
-            Log.e(TAG, "Sync failed: ${e.message}", e)
-            SyncResult(false, e.message ?: "Sync failed")
+        } else {
+            SyncResult(false, "No internet and could not save locally")
         }
     }
 
-    private fun buildDescription(body: String, type: String): String {
+    private fun syncToFirebase(
+        context: Context,
+        request: SyncRequest,
+        uid: String,
+        token: String,
+        dbUrl: String,
+        localAccountId: String?,
+    ): SyncResult {
+        val accountsRaw = httpGet("$dbUrl/users/$uid/accounts.json?auth=$token")
+        val accountId = findAccountId(accountsRaw, request.accountName, localAccountId)
+            ?: return SyncResult(false, "Account \"${request.accountName}\" not found in Firebase")
+
+        val description = request.description?.takeIf { it.isNotBlank() }
+            ?: buildDescriptionStatic(request.body, request.type)
+        val isoDate = formatIsoDateStatic(request.dateMillis)
+        val txnType = if (request.type.equals("credit", true)) "credit" else "debit"
+        val note =
+            "Planner: ${request.plannerSection} · Subtype: ${request.subtype}\n${request.body}"
+
+        val txnJson = JSONObject().apply {
+            put("type", txnType)
+            put("amount", request.amount)
+            put("description", description)
+            put("category", request.subtype)
+            put("account", request.accountName)
+            put("date", isoDate)
+            put("note", note)
+        }
+
+        val pushResponse = httpPost(
+            "$dbUrl/users/$uid/transactions.json?auth=$token",
+            txnJson.toString(),
+        ) ?: return SyncResult(false, "Failed to create transaction — check internet")
+
+        val txnId = JSONObject(pushResponse).optString("name")
+        if (txnId.isBlank()) {
+            return SyncResult(false, "Firebase did not return a transaction id")
+        }
+
+        updateWallet(dbUrl, uid, token, request)
+        updateAccountBalance(dbUrl, uid, token, accountId, accountsRaw, request)
+
+        Log.d(TAG, "Synced transaction $txnId")
+        return SyncResult(
+            success = true,
+            message = "₹${"%.2f".format(request.amount)} synced to ${request.plannerSection} · ${request.subtype}",
+            transactionId = txnId,
+        )
+    }
+
+    fun buildDescriptionStatic(body: String, type: String): String {
         val fromMatch = Regex(
             """(?i)\bfrom\s+([A-Za-z0-9][A-Za-z0-9 .&/@_-]{1,48})""",
         ).find(body)
@@ -112,38 +147,41 @@ object OverlaySyncRepository {
         return if (type.equals("credit", true)) "SMS credit" else "SMS debit"
     }
 
-    private fun formatIsoDate(millis: Long): String {
+    fun formatIsoDateStatic(millis: Long): String {
         val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", Locale.US)
         sdf.timeZone = TimeZone.getDefault()
         return sdf.format(Date(millis))
     }
 
-    private fun findAccountId(accountsRaw: String?, accountName: String): String? {
-        if (accountsRaw.isNullOrBlank() || accountsRaw == "null") return null
-        return try {
-            val trimmed = accountsRaw.trim()
-            if (trimmed.startsWith("[")) {
-                val arr = JSONArray(trimmed)
-                for (i in 0 until arr.length()) {
-                    val obj = arr.optJSONObject(i) ?: continue
-                    if (obj.optString("name") == accountName) {
-                        return obj.optString("id", accountName)
+    private fun findAccountId(
+        accountsRaw: String?,
+        accountName: String,
+        localAccountId: String?,
+    ): String? {
+        if (!accountsRaw.isNullOrBlank() && accountsRaw != "null") {
+            try {
+                val trimmed = accountsRaw.trim()
+                if (trimmed.startsWith("[")) {
+                    val arr = JSONArray(trimmed)
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.optJSONObject(i) ?: continue
+                        if (obj.optString("name") == accountName) {
+                            return obj.optString("id", accountName)
+                        }
+                    }
+                } else {
+                    val obj = JSONObject(trimmed)
+                    val keys = obj.keys()
+                    while (keys.hasNext()) {
+                        val id = keys.next()
+                        val child = obj.optJSONObject(id) ?: continue
+                        if (child.optString("name") == accountName) return id
                     }
                 }
-                null
-            } else {
-                val obj = JSONObject(trimmed)
-                val keys = obj.keys()
-                while (keys.hasNext()) {
-                    val id = keys.next()
-                    val child = obj.optJSONObject(id) ?: continue
-                    if (child.optString("name") == accountName) return id
-                }
-                null
+            } catch (_: Exception) {
             }
-        } catch (_: Exception) {
-            null
         }
+        return localAccountId
     }
 
     private fun updateWallet(dbUrl: String, uid: String, token: String, req: SyncRequest) {

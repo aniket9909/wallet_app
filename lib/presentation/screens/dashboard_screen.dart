@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../../logic/cubits/wallet_cubit.dart';
-import '../../logic/cubits/transaction_cubit.dart';
-import '../../logic/cubits/partial_transaction_cubit.dart';
+import '../../data/models/money_plan_model.dart';
 import '../../data/models/partial_transaction_model.dart';
 import '../../data/models/transaction_model_new.dart';
+import '../../data/services/monthly_tracker_engine.dart';
+import '../../logic/cubits/money_plan_cubit.dart';
+import '../../logic/cubits/partial_transaction_cubit.dart';
+import '../../logic/cubits/transaction_cubit.dart';
+import '../../logic/cubits/wallet_cubit.dart';
 import '../../routes/app_routes.dart';
-import '../widgets/balance_card.dart';
-import '../widgets/income_expense_chart.dart';
-import '../widgets/monthly_summary_card.dart';
+import '../theme/brand_colors.dart';
+import '../widgets/dashboard/home_dashboard_widgets.dart';
+import 'expense_tracker_screen.dart';
+import 'money_planner/money_planner_screen.dart';
+import 'money_planner/monthly_tracker_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -19,6 +24,15 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  late DateTime _selectedMonth;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _selectedMonth = DateTime(now.year, now.month);
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -28,9 +42,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _checkTodayUnseenPartials() {
     final partialCubit = context.read<PartialTransactionCubit>();
     final todayUnseen = partialCubit.getTodayUnseenPartials();
-    
+
     if (todayUnseen.isNotEmpty && mounted) {
-      // Show today's unseen partial transactions
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) {
           _showSmsReviewSheet(todayUnseen);
@@ -48,172 +61,287 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  void _openMonthlyBreakdown() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const MonthlyTrackerScreen()),
+    );
+  }
+
+  void _openPlanner() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const MoneyPlannerScreen()),
+    );
+  }
+
+  void _openAllTransactions() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ExpenseTrackerScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              Theme.of(context).colorScheme.secondary.withOpacity(0.1),
-            ],
-          ),
-        ),
+        decoration: const BoxDecoration(gradient: BrandColors.washGradient),
         child: SafeArea(
           child: BlocBuilder<WalletCubit, WalletState>(
-            builder: (context, state) {
-              if (state is WalletLoading || state is WalletInitial) {
+            builder: (context, walletState) {
+              if (walletState is WalletLoading || walletState is WalletInitial) {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              if (state is WalletError) {
+              if (walletState is WalletError) {
                 return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Error loading wallet data',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(state.message),
-                    ],
-                  ),
-                );
-              }
-
-              if (state is WalletLoaded) {
-                return RefreshIndicator(
-                  onRefresh: () async {
-                    context.read<WalletCubit>().loadWallet();
-                  },
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Header
-                        _buildHeader(context),
+                        Icon(Icons.error_outline,
+                            size: 64, color: Colors.red[300]),
                         const SizedBox(height: 16),
-                        
-                        // Partial Transactions Link
-                        BlocBuilder<PartialTransactionCubit, PartialTransactionState>(
-                          builder: (context, partialState) {
-                            if (partialState is PartialTransactionLoaded) {
-                              final todayUnseen = partialState.partials.where((p) {
-                                final now = DateTime.now();
-                                final today = DateTime(now.year, now.month, now.day);
-                                final pDate = DateTime(p.date.year, p.date.month, p.date.day);
-                                return pDate.isAtSameMomentAs(today) && !p.seen;
-                              }).length;
-                              
-                              if (todayUnseen > 0 || partialState.partials.isNotEmpty) {
-                                return Card(
-                                  margin: const EdgeInsets.only(bottom: 16),
-                                  child: InkWell(
-                                    onTap: () {
-                                      Navigator.pushNamed(context, AppRoutes.partialTransactions);
-                                    },
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(16),
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.receipt_long, 
-                                            color: Theme.of(context).colorScheme.primary),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                const Text(
-                                                  'Partial Transactions',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 16,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  todayUnseen > 0
-                                                      ? '$todayUnseen new today • ${partialState.partials.length} total'
-                                                      : '${partialState.partials.length} pending',
-                                                  style: TextStyle(
-                                                    color: Colors.grey[600],
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          Icon(Icons.chevron_right, 
-                                            color: Colors.grey[400]),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }
-                            }
-                            return const SizedBox();
-                          },
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Balance Card
-                        BalanceCard(wallet: state.wallet)
-                            .animate()
-                            .fadeIn(duration: 600.ms)
-                            .slideY(begin: -0.3, end: 0, curve: Curves.easeOut),
-                        
-                        const SizedBox(height: 24),
-
-                        // Income vs Expense Chart
                         Text(
-                          'Income vs Expense',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                          'Could not load wallet',
+                          style: Theme.of(context).textTheme.titleLarge,
                         ),
-                        const SizedBox(height: 12),
-                        IncomeExpenseChart(wallet: state.wallet)
-                            .animate(delay: 200.ms)
-                            .fadeIn(duration: 600.ms)
-                            .slideX(begin: -0.3, end: 0),
-                        
-                        const SizedBox(height: 24),
-
-                        // Monthly Summary
-                        Text(
-                          'This Month',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                        ),
-                        const SizedBox(height: 12),
-                        MonthlySummaryCard(wallet: state.wallet)
-                            .animate(delay: 400.ms)
-                            .fadeIn(duration: 600.ms)
-                            .slideY(begin: 0.3, end: 0),
-                        
-                        const SizedBox(height: 80), // Bottom padding for navigation
+                        const SizedBox(height: 8),
+                        Text(walletState.message, textAlign: TextAlign.center),
                       ],
                     ),
                   ),
                 );
               }
 
-              return const SizedBox();
+              if (walletState is! WalletLoaded) {
+                return const SizedBox.shrink();
+              }
+
+              return BlocBuilder<TransactionCubit, TransactionState>(
+                builder: (context, txnState) {
+                  final allTxns = txnState is TransactionLoaded
+                      ? txnState.transactions
+                      : <TransactionModelNew>[];
+
+                  return BlocBuilder<MoneyPlanCubit, MoneyPlanState>(
+                    builder: (context, planState) {
+                      final plan = planState is MoneyPlanLoaded
+                          ? planState.plan
+                          : const MoneyPlanModel();
+                      final snapshot = planState is MoneyPlanLoaded
+                          ? planState.snapshot
+                          : null;
+                      final planConfigured =
+                          planState is MoneyPlanLoaded && plan.setupComplete;
+
+                      final months =
+                          MonthlyTrackerEngine.availableMonths(allTxns);
+                      if (!months.any((m) =>
+                          m.year == _selectedMonth.year &&
+                          m.month == _selectedMonth.month)) {
+                        months.insert(0, _selectedMonth);
+                      }
+
+                      final monthTxns =
+                          transactionsForMonth(allTxns, _selectedMonth);
+                      final cashFlow = MonthCashFlow.fromTransactions(monthTxns);
+                      final tracker = MonthlyTrackerEngine.build(
+                        plan: plan,
+                        transactions: allTxns,
+                        month: _selectedMonth,
+                      );
+
+                      return RefreshIndicator(
+                        onRefresh: () async {
+                          context.read<WalletCubit>().loadWallet();
+                          context.read<TransactionCubit>().loadTransactions();
+                          context.read<MoneyPlanCubit>().loadPlan();
+                        },
+                        child: ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+                          children: [
+                            _buildHeader(context),
+                            const SizedBox(height: 14),
+                            _buildPartialTransactionsBanner(context),
+                            DashboardMonthPicker(
+                              selectedMonth: _selectedMonth,
+                              months: months,
+                              onChanged: (m) =>
+                                  setState(() => _selectedMonth = m),
+                            ).animate().fadeIn(duration: 350.ms),
+                            const SizedBox(height: 14),
+                            DashboardBalanceHero(
+                              totalBalance: walletState.wallet.totalBalance,
+                              cashFlow: cashFlow,
+                              month: _selectedMonth,
+                            ).animate().fadeIn(duration: 400.ms).slideY(
+                                  begin: 0.08,
+                                  end: 0,
+                                  curve: Curves.easeOut,
+                                ),
+                            const SizedBox(height: 16),
+                            if (!planConfigured)
+                              DashboardBudgetNotConfiguredCard(
+                                onOpenPlanner: _openPlanner,
+                              )
+                            else ...[
+                              DashboardBudgetProgressCard(
+                                tracker: tracker,
+                                onViewDetails: _openMonthlyBreakdown,
+                              ).animate(delay: 80.ms).fadeIn(duration: 400.ms),
+                              const SizedBox(height: 16),
+                              if (snapshot != null)
+                                DashboardPlanAllocationCard(
+                                  snapshot: snapshot,
+                                  planConfigured: planConfigured,
+                                ).animate(delay: 120.ms).fadeIn(duration: 400.ms),
+                              const SizedBox(height: 16),
+                              DashboardSectionProgressList(tracker: tracker)
+                                  .animate(delay: 160.ms)
+                                  .fadeIn(duration: 400.ms),
+                            ],
+                            const SizedBox(height: 20),
+                            DashboardMonthTransactions(
+                              transactions: monthTxns,
+                              onViewAll: _openAllTransactions,
+                            ).animate(delay: 200.ms).fadeIn(duration: 400.ms),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              );
             },
           ),
         ),
       ),
     );
   }
+
+  Widget _buildPartialTransactionsBanner(BuildContext context) {
+    return BlocBuilder<PartialTransactionCubit, PartialTransactionState>(
+      builder: (context, partialState) {
+        if (partialState is! PartialTransactionLoaded) {
+          return const SizedBox.shrink();
+        }
+
+        final todayUnseen = partialState.partials.where((p) {
+          final now = DateTime.now();
+          final today = DateTime(now.year, now.month, now.day);
+          final pDate = DateTime(p.date.year, p.date.month, p.date.day);
+          return pDate.isAtSameMomentAs(today) && !p.seen;
+        }).length;
+
+        if (todayUnseen == 0 && partialState.partials.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Material(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () {
+                Navigator.pushNamed(context, AppRoutes.partialTransactions);
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: BrandColors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.sms_outlined,
+                          color: BrandColors.blue),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'SMS transactions to review',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
+                            todayUnseen > 0
+                                ? '$todayUnseen new today · ${partialState.partials.length} pending'
+                                : '${partialState.partials.length} pending',
+                            style: TextStyle(
+                              color: BrandColors.muted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: Colors.grey[400]),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+Widget _buildHeader(BuildContext context) {
+  return Row(
+    children: [
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Arthigo',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: BrandColors.muted,
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Home',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: BrandColors.navy,
+                  ),
+            ),
+          ],
+        ),
+      ),
+      Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: IconButton(
+          onPressed: () {},
+          icon: const Icon(Icons.notifications_outlined),
+          color: BrandColors.navy,
+        ),
+      ),
+    ],
+  ).animate().fadeIn(duration: 350.ms);
 }
 
 class _SmsReviewSheet extends StatefulWidget {
@@ -325,24 +453,22 @@ class _SmsReviewSheetState extends State<_SmsReviewSheet> {
       note: p.smsBody,
     );
     context.read<TransactionCubit>().addTransaction(transaction);
-    
-    // Mark as seen and delete from partial transactions if it has an ID (saved in Firebase)
+
     if (p.id.isNotEmpty && !p.id.startsWith('test-')) {
       context.read<PartialTransactionCubit>().markAsSeen(p.id);
       context.read<PartialTransactionCubit>().deletePartialTransaction(p.id);
     }
-    
+
     setState(() {
       _pending.removeWhere((e) => e.id == p.id);
     });
   }
 
   void _onReject(PartialTransaction p) {
-    // Mark as seen if it has an ID (saved in Firebase)
     if (p.id.isNotEmpty && !p.id.startsWith('test-')) {
       context.read<PartialTransactionCubit>().markAsSeen(p.id);
     }
-    
+
     setState(() {
       _pending.removeWhere((e) => e.id == p.id);
     });
@@ -430,36 +556,3 @@ class _SmsPartialTile extends StatelessWidget {
     );
   }
 }
-
-Widget _buildHeader(BuildContext context) {
-  return Row(
-    children: [
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Welcome back!',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.grey[600],
-                  ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Dashboard',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-          ],
-        ),
-      ),
-      IconButton(
-        onPressed: () {},
-        icon: const Icon(Icons.notifications_outlined),
-        iconSize: 28,
-      ),
-    ],
-  ).animate().fadeIn(duration: 400.ms);
-}
-

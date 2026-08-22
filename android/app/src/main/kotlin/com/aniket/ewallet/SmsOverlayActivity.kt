@@ -213,9 +213,12 @@ class SmsOverlayActivity : Activity() {
                 }
 
                 statusText.text = when {
-                    !data.loggedIn && accounts.isEmpty() ->
-                        "Sign in & open app once to load Firebase data"
-                    accounts.isEmpty() -> "No bank accounts found"
+                    accounts.isEmpty() && !data.loggedIn ->
+                        "Sign in & open app once to load accounts"
+                    accounts.isEmpty() ->
+                        "No accounts yet — add one in the app"
+                    data.source == "sqlite" || data.source == "cache" ->
+                        "${accounts.size} account(s) · offline ready"
                     else ->
                         "${accounts.size} account(s) ready · pick section & subcategory"
                 }
@@ -320,8 +323,13 @@ class SmsOverlayActivity : Activity() {
         formPanel.visibility = View.GONE
         failurePanel.visibility = View.GONE
         successPanel.visibility = View.VISIBLE
+        val offlineNote = if (message.contains("offline", ignoreCase = true)) {
+            "\n\nWill sync to Firebase when online."
+        } else {
+            ""
+        }
         successDetailText.text =
-            "$message\n\nAmount: ₹${"%.2f".format(Locale.US, smsAmount)}\nAccount: $account\nSection: $section\nSubcategory: $subtype"
+            "$message$offlineNote\n\nAmount: ₹${"%.2f".format(Locale.US, smsAmount)}\nAccount: $account\nSection: $section\nSubcategory: $subtype"
     }
 
     private fun showFailure(error: String) {

@@ -7,6 +7,8 @@ import '../../data/repositories/sms_repository.dart';
 import '../../data/services/firebase_realtime_service.dart';
 import '../../data/services/sms_coordinator_service.dart';
 import '../../data/services/overlay_cache_service.dart';
+import '../../data/services/offline_sync_service.dart';
+import '../../core/database/local_app_database.dart';
 import '../../logic/cubits/account_cubit.dart';
 import '../../logic/cubits/debt_cubit.dart';
 import '../../logic/cubits/investment_cubit.dart';
@@ -32,7 +34,9 @@ class AuthBootstrap {
       await user.getIdToken(true);
 
       final firebase = context.read<FirebaseRealtimeService>();
+      await LocalAppDatabase.instance.database;
       await firebase.initializeUserData();
+      await OfflineSyncService.instance.flush(firebase);
 
       context.read<WalletCubit>().loadWallet();
       context.read<AccountCubit>().loadAccounts();
@@ -47,7 +51,7 @@ class AuthBootstrap {
 
       await context.read<SmsCoordinatorService>().startListenerIfPermitted();
       await _syncLocalSmsIfAny(context);
-      await OverlayCacheService.syncFromState();
+      await OverlayCacheService.syncFromLocalDatabase();
 
       debugPrint('AuthBootstrap: setup complete for uid=${user.uid}');
       return true;

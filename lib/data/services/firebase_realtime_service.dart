@@ -60,8 +60,14 @@ class FirebaseRealtimeService {
   }
 
   Future<void> addAccount(AccountModel account) async {
-    final ref = _userRef.child('accounts').push();
-    await ref.set(account.toJson());
+    await upsertAccount(account);
+  }
+
+  Future<void> upsertAccount(AccountModel account) async {
+    final id = account.id.isNotEmpty
+        ? account.id
+        : _userRef.child('accounts').push().key!;
+    await _userRef.child('accounts/$id').set(account.toJson());
   }
 
   Future<void> updateAccount(AccountModel account) async {
@@ -88,16 +94,19 @@ class FirebaseRealtimeService {
   }
 
   Future<String> addTransaction(TransactionModelNew transaction) async {
-    final ref = _userRef.child('transactions').push();
-    await ref.set(transaction.toJson());
-    
-    // Update wallet balance
+    return upsertTransaction(transaction);
+  }
+
+  Future<String> upsertTransaction(TransactionModelNew transaction) async {
+    final id = transaction.id.isNotEmpty
+        ? transaction.id
+        : _userRef.child('transactions').push().key!;
+    await _userRef.child('transactions/$id').set(transaction.toJson());
+
     await _updateWalletBalance(transaction);
-    
-    // Update account balance
     await _updateAccountBalance(transaction);
-    
-    return ref.key!;
+
+    return id;
   }
 
   Future<void> updateTransaction(TransactionModelNew transaction) async {
@@ -189,8 +198,8 @@ class FirebaseRealtimeService {
   }
 
   Future<void> addSavingsGoal(SavingsGoalModel goal) async {
-    final ref = _userRef.child('goals').push();
-    await ref.set(goal.toJson());
+    final id = goal.id.isNotEmpty ? goal.id : _userRef.child('goals').push().key!;
+    await _userRef.child('goals/$id').set(goal.toJson());
   }
 
   Future<void> updateSavingsGoal(SavingsGoalModel goal) async {
@@ -248,9 +257,9 @@ class FirebaseRealtimeService {
   }
 
   Future<String> addDebt(DebtModel debt) async {
-    final ref = _userRef.child('debts').push();
-    await ref.set(debt.toJson());
-    return ref.key!;
+    final id = debt.id.isNotEmpty ? debt.id : _userRef.child('debts').push().key!;
+    await _userRef.child('debts/$id').set(debt.toJson());
+    return id;
   }
 
   Future<void> updateDebt(DebtModel debt) async {
@@ -274,9 +283,11 @@ class FirebaseRealtimeService {
   }
 
   Future<String> addInvestment(InvestmentModel investment) async {
-    final ref = _userRef.child('investments').push();
-    await ref.set(investment.toJson());
-    return ref.key!;
+    final id = investment.id.isNotEmpty
+        ? investment.id
+        : _userRef.child('investments').push().key!;
+    await _userRef.child('investments/$id').set(investment.toJson());
+    return id;
   }
 
   Future<void> updateInvestment(InvestmentModel investment) async {
@@ -381,9 +392,11 @@ class FirebaseRealtimeService {
   }
 
   Future<String> addPartialTransaction(PartialTransaction partial) async {
-    final ref = _userRef.child('partialTransactions').push();
-    await ref.set(partial.toJson());
-    return ref.key!;
+    final id = partial.id.isNotEmpty
+        ? partial.id
+        : _userRef.child('partialTransactions').push().key!;
+    await _userRef.child('partialTransactions/$id').set(partial.toJson());
+    return id;
   }
 
   Future<void> updatePartialTransaction(PartialTransaction partial) async {

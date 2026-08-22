@@ -27,6 +27,33 @@ class BrandColors {
   );
 }
 
+class BrandAppIcon extends StatelessWidget {
+  final double size;
+  final double borderRadius;
+
+  const BrandAppIcon({
+    super.key,
+    this.size = 120,
+    this.borderRadius = 28,
+  });
+
+  static const assetPath = 'assets/logo/money_mate_app_icon.png';
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: Image.asset(
+        assetPath,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.high,
+      ),
+    );
+  }
+}
+
 class BrandLogo extends StatelessWidget {
   final double width;
 
