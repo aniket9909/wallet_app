@@ -10,6 +10,7 @@ import '../../../data/services/sms_coordinator_service.dart';
 import '../../../data/services/sms_import_service.dart';
 import '../../../logic/cubits/sms_cubit.dart';
 import '../../theme/brand_colors.dart';
+import '../../theme/onboarding_assets.dart';
 
 /// Shown once after login on Android to request SMS, notifications, and overlay.
 class PermissionSetupScreen extends StatefulWidget {
@@ -101,6 +102,31 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
     await PermissionSetupGate.completeAndContinue(context);
   }
 
+  Future<void> _skip() async {
+    final skip = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Skip permissions?'),
+        content: const Text(
+          'You can allow SMS, notifications, and overlay access anytime from Settings → SMS.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Go back'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Skip for now'),
+          ),
+        ],
+      ),
+    );
+    if (skip == true && mounted) {
+      await PermissionSetupGate.completeAndContinue(context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -113,16 +139,39 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
                 ? const Center(child: CircularProgressIndicator())
                 : Column(
                     children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
+                        child: Row(
+                          children: [
+                            const Spacer(),
+                            TextButton(
+                              onPressed: _skip,
+                              child: const Text('Skip'),
+                            ),
+                          ],
+                        ),
+                      ),
                       Expanded(
                         child: SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                          padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Center(child: BrandAppIcon(size: 88)),
+                              Center(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: Image.asset(
+                                    OnboardingAssets.permissions,
+                                    width: 132,
+                                    height: 132,
+                                    fit: BoxFit.cover,
+                                    filterQuality: FilterQuality.high,
+                                  ),
+                                ),
+                              ),
                               const SizedBox(height: 24),
                               Text(
-                                'Allow permissions',
+                                'Optional permissions',
                                 style: Theme.of(context)
                                     .textTheme
                                     .headlineSmall
@@ -133,7 +182,7 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'Arthigo reads bank SMS to auto-track transactions and shows alerts when money moves.',
+                                'Allow these for auto SMS tracking and alerts — or skip and set them up later in Settings.',
                                 style: TextStyle(
                                   color: BrandColors.muted,
                                   height: 1.45,
@@ -147,7 +196,6 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
                                 subtitle:
                                     'Detect debit/credit messages from banks and UPI.',
                                 granted: _smsGranted,
-                                required: true,
                                 actionLabel: _smsPermanentDeny
                                     ? 'Open settings'
                                     : 'Allow SMS',
@@ -192,7 +240,7 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
-                                        'SMS is required for auto tracking. You can enable the rest later in Settings → SMS.',
+                                        'All permissions are optional. Without SMS you can still add transactions manually from Expenses.',
                                         style: TextStyle(
                                           fontSize: 12,
                                           color: BrandColors.muted,
@@ -221,26 +269,20 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                 ),
-                                child: Text(
-                                  _smsGranted ? 'Continue' : 'Continue anyway',
-                                  style: const TextStyle(
+                                child: const Text(
+                                  'Continue',
+                                  style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
                                   ),
                                 ),
                               ),
                             ),
-                            if (!_smsGranted) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                'Without SMS, add transactions manually from the Expenses tab.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: BrandColors.muted,
-                                ),
-                              ),
-                            ],
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: _skip,
+                              child: const Text('Skip for now'),
+                            ),
                           ],
                         ),
                       ),
@@ -259,7 +301,6 @@ class _PermissionTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final bool granted;
-  final bool required;
   final String actionLabel;
   final VoidCallback onAction;
 
@@ -269,7 +310,6 @@ class _PermissionTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.granted,
-    this.required = false,
     required this.actionLabel,
     required this.onAction,
   });
@@ -317,25 +357,6 @@ class _PermissionTile extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (required)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: BrandColors.blue.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              'Required',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: BrandColors.blue,
-                              ),
-                            ),
-                          ),
                       ],
                     ),
                     const SizedBox(height: 4),

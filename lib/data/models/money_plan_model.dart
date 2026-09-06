@@ -807,6 +807,8 @@ class PlanRule extends Equatable {
 /// Master money plan document.
 class MoneyPlanModel extends Equatable {
   final bool setupComplete;
+  /// Day of month when the budget cycle resets (1–28). Example: 7 → 7th to next 7th.
+  final int cycleStartDay;
   final PlanIncome income;
   final List<PlanExpense> expenses;
   final List<PlanInvestment> investments;
@@ -820,6 +822,7 @@ class MoneyPlanModel extends Equatable {
 
   const MoneyPlanModel({
     this.setupComplete = false,
+    this.cycleStartDay = 1,
     this.income = const PlanIncome(),
     this.expenses = const [],
     this.investments = const [],
@@ -839,6 +842,7 @@ class MoneyPlanModel extends Equatable {
 
   MoneyPlanModel copyWith({
     bool? setupComplete,
+    int? cycleStartDay,
     PlanIncome? income,
     List<PlanExpense>? expenses,
     List<PlanInvestment>? investments,
@@ -852,6 +856,7 @@ class MoneyPlanModel extends Equatable {
   }) {
     return MoneyPlanModel(
       setupComplete: setupComplete ?? this.setupComplete,
+      cycleStartDay: cycleStartDay ?? this.cycleStartDay,
       income: income ?? this.income,
       expenses: expenses ?? this.expenses,
       investments: investments ?? this.investments,
@@ -884,6 +889,7 @@ class MoneyPlanModel extends Equatable {
 
     return MoneyPlanModel(
       setupComplete: json['setup_complete'] ?? false,
+      cycleStartDay: ((json['cycle_start_day'] as num?)?.toInt() ?? 1).clamp(1, 28),
       income: PlanIncome.fromJson(
         json['income'] != null
             ? Map<dynamic, dynamic>.from(json['income'] as Map)
@@ -929,6 +935,7 @@ class MoneyPlanModel extends Equatable {
 
     return {
       'setup_complete': setupComplete,
+      'cycle_start_day': cycleStartDay.clamp(1, 28),
       'income': income.toJson(),
       'expenses': listToMap(expenses),
       'investments': listToMap(investments),
@@ -972,6 +979,7 @@ class MoneyPlanModel extends Equatable {
 
     return MoneyPlanModel(
       setupComplete: false,
+      cycleStartDay: 1,
       income: PlanIncome(monthlyIncome: monthlyIncome),
       expenses: expenses,
       investments: [
@@ -1015,6 +1023,7 @@ class MoneyPlanModel extends Equatable {
   @override
   List<Object?> get props => [
         setupComplete,
+        cycleStartDay,
         income,
         expenses,
         investments,

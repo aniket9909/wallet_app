@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
+import '../../../core/utils/budget_cycle.dart';
+import '../../../core/utils/budget_month_day_editor.dart';
 import '../../../core/utils/planner_navigation.dart';
 import '../../../data/models/money_plan_model.dart';
 import '../../../data/models/transaction_model_new.dart';
@@ -60,31 +61,46 @@ class _MonthlyTrackerScreenState extends State<MonthlyTrackerScreen> {
             final plan = planState is MoneyPlanLoaded
                 ? planState.plan
                 : const MoneyPlanModel();
+            final cycleDay = plan.cycleStartDay;
+            final currentCycle =
+                BudgetCycle.containing(DateTime.now(), cycleDay);
 
             return BlocBuilder<TransactionCubit, TransactionState>(
               builder: (context, txnState) {
                 final txns = txnState is TransactionLoaded
                     ? txnState.transactions
                     : <TransactionModelNew>[];
-                final months = MonthlyTrackerEngine.availableMonths(txns);
+                final months = MonthlyTrackerEngine.availableMonths(
+                  txns,
+                  cycleStartDay: cycleDay,
+                );
+                final aligned =
+                    BudgetCycle.fromStart(_selectedMonth, cycleDay).start;
+                final selected = months.any((m) =>
+                        m.year == aligned.year &&
+                        m.month == aligned.month &&
+                        m.day == aligned.day)
+                    ? aligned
+                    : currentCycle.start;
                 if (!months.any((m) =>
-                    m.year == _selectedMonth.year &&
-                    m.month == _selectedMonth.month)) {
-                  months.insert(0, _selectedMonth);
+                    m.year == selected.year &&
+                    m.month == selected.month &&
+                    m.day == selected.day)) {
+                  months.insert(0, selected);
                 }
 
                 final snap = MonthlyTrackerEngine.build(
                   plan: plan,
                   transactions: txns,
-                  month: _selectedMonth,
+                  month: selected,
                 );
 
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                   children: [
-                    _monthPicker(context, months),
+                    _monthPicker(context, months, cycleDay, selected),
                     const SizedBox(height: 14),
-                    _summaryHero(context, snap),
+                    _summaryHero(context, snap, cycleDay),
                     const SizedBox(height: 14),
                     _statusChips(context, snap),
                     const SizedBox(height: 18),
@@ -96,13 +112,13 @@ class _MonthlyTrackerScreenState extends State<MonthlyTrackerScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Planned amounts from your Money Planner vs tagged transactions this month.',
+                      'Planned vs tagged for ${snap.cycle.labelForDay(cycleDay)}.',
                       style: TextStyle(color: Colors.grey[600], fontSize: 12),
                     ),
                     const SizedBox(height: 12),
                     for (final section in snap.sections)
                       if (section.items.isNotEmpty)
-                        _sectionCard(context, section, snap.month),
+                        _sectionCard(context, section, snap.cycle),
                   ],
                 ).animate().fadeIn(duration: 350.ms);
               },
@@ -113,8 +129,17 @@ class _MonthlyTrackerScreenState extends State<MonthlyTrackerScreen> {
     );
   }
 
-  Widget _monthPicker(BuildContext context, List<DateTime> months) {
-    final label = DateFormat('MMMM yyyy');
+  Widget _monthPicker(
+    BuildContext context,
+    List<DateTime> months,
+    int cycleStartDay,
+    DateTime selected,
+  ) {
+    final day = BudgetCycle.normalizeDay(cycleStartDay);
+    final selectedCycle = BudgetCycle.fromStart(selected, day);
+    final currentCycle = BudgetCycle.containing(DateTime.now(), day);
+    final canGoNext = selectedCycle.start.isBefore(currentCycle.start);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -131,11 +156,10 @@ class _MonthlyTrackerScreenState extends State<MonthlyTrackerScreen> {
       child: Row(
         children: [
           IconButton(
-            tooltip: 'Previous month',
+            tooltip: 'Previous period',
             onPressed: () {
               setState(() {
-                _selectedMonth =
-                    DateTime(_selectedMonth.year, _selectedMonth.month - 1);
+                _selectedMonth = selectedCycle.previous(day).start;
               });
             },
             icon: const Icon(Icons.chevron_left),
@@ -146,46 +170,74 @@ class _MonthlyTrackerScreenState extends State<MonthlyTrackerScreen> {
                 isExpanded: true,
                 value: months.firstWhere(
                   (m) =>
-                      m.year == _selectedMonth.year &&
-                      m.month == _selectedMonth.month,
-                  orElse: () => _selectedMonth,
+                      m.year == selected.year &&
+                      m.month == selected.month &&
+                      m.day == selected.day,
+                  orElse: () => selected,
                 ),
                 items: [
                   for (final m in months)
                     DropdownMenuItem(
                       value: m,
                       child: Text(
-                        label.format(m),
+                        BudgetCycle.fromStart(m, day).labelForDay(day),
                         style: const TextStyle(fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                 ],
                 onChanged: (m) {
                   if (m == null) return;
-                  setState(() => _selectedMonth = DateTime(m.year, m.month));
+                  setState(() {
+                    _selectedMonth = BudgetCycle.fromStart(m, day).start;
+                  });
                 },
               ),
             ),
           ),
           IconButton(
-            tooltip: 'Next month',
-            onPressed: () {
-              final now = DateTime.now();
-              final next =
-                  DateTime(_selectedMonth.year, _selectedMonth.month + 1);
-              if (next.isAfter(DateTime(now.year, now.month + 1))) return;
-              setState(() => _selectedMonth = next);
-            },
+            tooltip: 'Next period',
+            onPressed: canGoNext
+                ? () {
+                    setState(() {
+                      _selectedMonth = selectedCycle.next(day).start;
+                    });
+                  }
+                : null,
             icon: const Icon(Icons.chevron_right),
+          ),
+          IconButton(
+            tooltip: 'Edit month start day',
+            onPressed: () async {
+              final ok = await editAndSaveBudgetMonthDay(
+                context,
+                currentDay: day,
+              );
+              if (ok && mounted) {
+                final planState = context.read<MoneyPlanCubit>().state;
+                final nextDay = planState is MoneyPlanLoaded
+                    ? planState.plan.cycleStartDay
+                    : day;
+                setState(() {
+                  _selectedMonth =
+                      BudgetCycle.containing(DateTime.now(), nextDay).start;
+                });
+              }
+            },
+            icon: const Icon(Icons.edit_calendar_outlined),
           ),
         ],
       ),
     );
   }
 
-  Widget _summaryHero(BuildContext context, MonthlyTrackerSnapshot snap) {
+  Widget _summaryHero(
+    BuildContext context,
+    MonthlyTrackerSnapshot snap,
+    int cycleStartDay,
+  ) {
     final progress = snap.overallProgress.clamp(0.0, 1.0);
-    final monthLabel = DateFormat('MMMM').format(snap.month);
+    final monthLabel = snap.cycle.labelForDay(cycleStartDay);
 
     return Container(
       width: double.infinity,
@@ -307,12 +359,12 @@ class _MonthlyTrackerScreenState extends State<MonthlyTrackerScreen> {
   Widget _sectionCard(
     BuildContext context,
     TrackerSectionSummary section,
-    DateTime month,
+    BudgetCycle cycle,
   ) {
     final color = PlannerSections.colorFor(section.section);
     final items = section.items.where((item) {
       if (_statusFilter == null) return true;
-      return item.statusFor(month) == _statusFilter;
+      return item.statusFor(cycle) == _statusFilter;
     }).toList();
 
     if (items.isEmpty) return const SizedBox.shrink();
@@ -386,7 +438,7 @@ class _MonthlyTrackerScreenState extends State<MonthlyTrackerScreen> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                for (final item in items) _itemRow(context, item, month, color),
+                for (final item in items) _itemRow(context, item, cycle, color),
               ],
             ),
           ),
@@ -398,10 +450,10 @@ class _MonthlyTrackerScreenState extends State<MonthlyTrackerScreen> {
   Widget _itemRow(
     BuildContext context,
     TrackerLineItem item,
-    DateTime month,
+    BudgetCycle cycle,
     Color color,
   ) {
-    final status = item.statusFor(month);
+    final status = item.statusFor(cycle);
     final statusMeta = _statusMeta(status);
     final barValue = item.planned <= 0
         ? (item.actual > 0 ? 1.0 : 0.0)

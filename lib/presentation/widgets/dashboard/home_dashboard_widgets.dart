@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/utils/budget_cycle.dart';
+import '../../../core/utils/budget_month_day_editor.dart';
 import '../../../core/utils/planner_navigation.dart';
 import '../../../data/models/transaction_model_new.dart';
+import '../../../logic/cubits/money_plan_cubit.dart';
 import '../../../data/services/money_plan_engine.dart';
 import '../../../data/services/monthly_tracker_engine.dart';
 import '../../theme/brand_colors.dart';
@@ -41,13 +44,11 @@ class MonthCashFlow {
 
 List<TransactionModelNew> transactionsForMonth(
   List<TransactionModelNew> all,
-  DateTime month,
-) {
-  final start = DateTime(month.year, month.month);
-  final end = DateTime(month.year, month.month + 1);
-  return all
-      .where((t) => !t.date.isBefore(start) && t.date.isBefore(end))
-      .toList()
+  DateTime month, {
+  int cycleStartDay = 1,
+}) {
+  final cycle = BudgetCycle.fromStart(month, cycleStartDay);
+  return all.where((t) => cycle.contains(t.date)).toList()
     ..sort((a, b) => b.date.compareTo(a.date));
 }
 
@@ -55,23 +56,51 @@ class DashboardMonthPicker extends StatelessWidget {
   final DateTime selectedMonth;
   final List<DateTime> months;
   final ValueChanged<DateTime> onChanged;
+  final int cycleStartDay;
+  final bool showEditDay;
 
   const DashboardMonthPicker({
     super.key,
     required this.selectedMonth,
     required this.months,
     required this.onChanged,
+    this.cycleStartDay = 1,
+    this.showEditDay = true,
   });
+
+  bool _sameStart(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  Future<void> _editMonthDay(BuildContext context, int day) async {
+    final next = await showBudgetMonthDayEditor(
+      context,
+      currentDay: day,
+    );
+    if (next == null || !context.mounted) return;
+    await context.read<MoneyPlanCubit>().updateCycleStartDay(next);
+    if (!context.mounted) return;
+    onChanged(BudgetCycle.containing(DateTime.now(), next).start);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          next == 1
+              ? 'Budget month uses the calendar month'
+              : 'Budget month now starts on day $next',
+        ),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final label = DateFormat('MMMM yyyy');
-    final now = DateTime.now();
-    final canGoNext = selectedMonth.year < now.year ||
-        (selectedMonth.year == now.year && selectedMonth.month < now.month);
+    final day = BudgetCycle.normalizeDay(cycleStartDay);
+    final selectedCycle = BudgetCycle.fromStart(selectedMonth, day);
+    final currentCycle = BudgetCycle.containing(DateTime.now(), day);
+    final canGoNext = selectedCycle.start.isBefore(currentCycle.start);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
@@ -83,52 +112,90 @@ class DashboardMonthPicker extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         children: [
-          IconButton(
-            tooltip: 'Previous month',
-            onPressed: () {
-              onChanged(DateTime(selectedMonth.year, selectedMonth.month - 1));
-            },
-            icon: const Icon(Icons.chevron_left),
-          ),
-          Expanded(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<DateTime>(
-                isExpanded: true,
-                value: months.firstWhere(
-                  (m) =>
-                      m.year == selectedMonth.year &&
-                      m.month == selectedMonth.month,
-                  orElse: () => selectedMonth,
+          Row(
+            children: [
+              IconButton(
+                tooltip: 'Previous period',
+                onPressed: () {
+                  onChanged(selectedCycle.previous(day).start);
+                },
+                icon: const Icon(Icons.chevron_left),
+              ),
+              Expanded(
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<DateTime>(
+                    isExpanded: true,
+                    value: months.firstWhere(
+                      (m) => _sameStart(m, selectedMonth),
+                      orElse: () => selectedMonth,
+                    ),
+                    items: [
+                      for (final m in months)
+                        DropdownMenuItem(
+                          value: m,
+                          child: Text(
+                            BudgetCycle.fromStart(m, day).labelForDay(day),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (m) {
+                      if (m != null) {
+                        onChanged(BudgetCycle.fromStart(m, day).start);
+                      }
+                    },
+                  ),
                 ),
-                items: [
-                  for (final m in months)
-                    DropdownMenuItem(
-                      value: m,
-                      child: Text(
-                        label.format(m),
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              IconButton(
+                tooltip: 'Next period',
+                onPressed: canGoNext
+                    ? () => onChanged(selectedCycle.next(day).start)
+                    : null,
+                icon: const Icon(Icons.chevron_right),
+              ),
+            ],
+          ),
+          if (showEditDay) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 8, 2),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.event_outlined,
+                    size: 16,
+                    color: BrandColors.blue,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      day == 1
+                          ? 'Month starts on the 1st (calendar)'
+                          : 'Month starts on day $day',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: BrandColors.muted,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _editMonthDay(context, day),
+                    icon: const Icon(Icons.edit_calendar_outlined, size: 16),
+                    label: const Text('Edit date'),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      foregroundColor: BrandColors.blue,
+                    ),
+                  ),
                 ],
-                onChanged: (m) {
-                  if (m != null) onChanged(DateTime(m.year, m.month));
-                },
               ),
             ),
-          ),
-          IconButton(
-            tooltip: 'Next month',
-            onPressed: canGoNext
-                ? () {
-                    onChanged(
-                      DateTime(selectedMonth.year, selectedMonth.month + 1),
-                    );
-                  }
-                : null,
-            icon: const Icon(Icons.chevron_right),
-          ),
+          ],
         ],
       ),
     );
@@ -139,17 +206,20 @@ class DashboardBalanceHero extends StatelessWidget {
   final double totalBalance;
   final MonthCashFlow cashFlow;
   final DateTime month;
+  final int cycleStartDay;
 
   const DashboardBalanceHero({
     super.key,
     required this.totalBalance,
     required this.cashFlow,
     required this.month,
+    this.cycleStartDay = 1,
   });
 
   @override
   Widget build(BuildContext context) {
-    final monthLabel = DateFormat('MMMM yyyy').format(month);
+    final day = BudgetCycle.normalizeDay(cycleStartDay);
+    final monthLabel = BudgetCycle.fromStart(month, day).labelForDay(day);
     final netPositive = cashFlow.net >= 0;
 
     return Container(
@@ -284,7 +354,7 @@ class DashboardBudgetProgressCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final progress = tracker.overallProgress.clamp(0.0, 1.0);
-    final monthLabel = DateFormat('MMMM').format(tracker.month);
+    final monthLabel = tracker.cycle.label;
 
     return Container(
       padding: const EdgeInsets.all(18),

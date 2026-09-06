@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/database/local_app_database.dart';
+import '../../data/models/account_model.dart';
+import '../../data/models/money_plan_model.dart';
 import '../../data/models/settings_model.dart';
 import '../../logic/cubits/settings_cubit.dart';
 import '../../routes/app_routes.dart';
@@ -24,8 +26,12 @@ class OnboardingGate {
     final settings = await db.loadSettings();
     if (settings?.onboardingComplete == true) return false;
 
-    final accounts = await db.getAccounts();
-    final plan = await db.loadMoneyPlan();
+    final results = await Future.wait([
+      db.getAccounts(),
+      db.loadMoneyPlan(),
+    ]);
+    final accounts = results[0] as List<AccountModel>;
+    final plan = results[1] as MoneyPlanModel?;
 
     final hasAccounts = accounts.isNotEmpty;
     final hasPlanner = plan?.setupComplete ?? false;

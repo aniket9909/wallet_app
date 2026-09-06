@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../data/models/money_plan_model.dart';
 import '../../data/models/transaction_model_new.dart';
+import '../../logic/cubits/money_plan_cubit.dart';
 import '../../presentation/screens/money_planner/money_plan_section_screen.dart';
 import '../../presentation/screens/transaction_detail_screen.dart';
+import '../../presentation/theme/brand_colors.dart';
+import 'budget_month_day_editor.dart';
 
 /// Canonical Money Planner section keys used across SMS sync + planner UI.
 class PlannerSections {
@@ -306,13 +310,96 @@ Future<void> openPlannerSection(
   BuildContext context, {
   required String section,
   String? subtype,
+  bool openEdit = false,
 }) {
   return Navigator.of(context).push(
     MaterialPageRoute(
       builder: (_) => MoneyPlanSectionScreen(
         section: PlannerSections.normalize(section),
         initialSubtype: subtype,
+        initialTabIndex: openEdit ? 1 : 0,
       ),
     ),
+  );
+}
+
+/// Bottom sheet to pick a planner section and open its Edit tab.
+Future<void> showPlannerEditSheet(BuildContext context) {
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (ctx) {
+      final maxHeight = MediaQuery.sizeOf(ctx).height * 0.75;
+      return SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: [
+              Text(
+                'Edit plan',
+                style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Change amounts or the budget month start day without re-running setup.',
+                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: BrandColors.blue.withOpacity(0.15),
+                  child: const Icon(
+                    Icons.edit_calendar_outlined,
+                    color: BrandColors.blue,
+                    size: 20,
+                  ),
+                ),
+                title: const Text('Budget month start day'),
+                subtitle: const Text('When each plan month begins'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final planState = context.read<MoneyPlanCubit>().state;
+                  final day = planState is MoneyPlanLoaded
+                      ? planState.plan.cycleStartDay
+                      : 1;
+                  await editAndSaveBudgetMonthDay(context, currentDay: day);
+                },
+              ),
+              const Divider(),
+              for (final section in PlannerSections.all)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor:
+                        PlannerSections.colorFor(section).withOpacity(0.15),
+                    child: Icon(
+                      PlannerSections.iconFor(section),
+                      color: PlannerSections.colorFor(section),
+                      size: 20,
+                    ),
+                  ),
+                  title: Text(section),
+                  trailing: const Icon(Icons.edit_outlined, size: 18),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    openPlannerSection(
+                      context,
+                      section: section,
+                      openEdit: true,
+                    );
+                  },
+                ),
+            ],
+          ),
+        ),
+      );
+    },
   );
 }

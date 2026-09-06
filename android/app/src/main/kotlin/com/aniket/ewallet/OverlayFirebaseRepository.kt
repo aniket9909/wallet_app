@@ -48,6 +48,12 @@ object OverlayFirebaseRepository {
     private const val PREFS = PREFS_NAME
     private const val KEY_SUBTYPES = KEY_PLANNER_SUBTYPES
 
+    /**
+     * Saves overlay dropdown data.
+     * When [writeSqlite] is false (Flutter app in foreground), only SharedPreferences
+     * are updated — Flutter already owns arthigo_local.db and concurrent Kotlin writes
+     * cause SQLITE_BUSY freezes.
+     */
     fun saveCache(
         context: Context,
         accountsJson: String,
@@ -56,6 +62,7 @@ object OverlayFirebaseRepository {
         uid: String?,
         idToken: String?,
         dbUrl: String?,
+        writeSqlite: Boolean = !MainActivity.isInForeground,
     ) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString(KEY_ACCOUNTS, accountsJson)
@@ -66,21 +73,30 @@ object OverlayFirebaseRepository {
             .putString(KEY_DB_URL, dbUrl ?: DEFAULT_DB_URL)
             .apply()
 
-        LocalAppDatabase.ensureInitialized(context)
-        LocalAppDatabase.replaceAccountsFromArray(context, accountsJson)
+        if (!writeSqlite) {
+            Log.d(TAG, "Overlay cache saved to prefs only (Flutter owns sqlite)")
+            return
+        }
+
         try {
-            val cats = JSONArray(categoriesJson)
-            if (cats.length() > 0) {
-                val names = mutableListOf<String>()
-                for (i in 0 until cats.length()) names.add(cats.optString(i))
-                LocalAppDatabase.replaceCategories(context, names)
+            LocalAppDatabase.ensureInitialized(context)
+            LocalAppDatabase.replaceAccountsFromArray(context, accountsJson)
+            try {
+                val cats = JSONArray(categoriesJson)
+                if (cats.length() > 0) {
+                    val names = mutableListOf<String>()
+                    for (i in 0 until cats.length()) names.add(cats.optString(i))
+                    LocalAppDatabase.replaceCategories(context, names)
+                }
+            } catch (_: Exception) {
             }
-        } catch (_: Exception) {
+            if (!plannerSubtypesJson.isNullOrBlank()) {
+                LocalAppDatabase.replaceSubcategoriesFromJson(context, plannerSubtypesJson)
+            }
+            Log.d(TAG, "Overlay cache saved to prefs + sqlite")
+        } catch (e: Exception) {
+            Log.w(TAG, "Overlay sqlite write skipped: ${e.message}")
         }
-        if (!plannerSubtypesJson.isNullOrBlank()) {
-            LocalAppDatabase.replaceSubcategoriesFromJson(context, plannerSubtypesJson)
-        }
-        Log.d(TAG, "Overlay cache saved to prefs + sqlite")
     }
 
     fun fetch(context: Context, transactionType: String): OverlayFirebaseData {

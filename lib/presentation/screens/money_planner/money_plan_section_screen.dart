@@ -14,11 +14,14 @@ import '../../widgets/sms_sync_sheet.dart';
 class MoneyPlanSectionScreen extends StatefulWidget {
   final String section;
   final String? initialSubtype;
+  /// 0 = Overview, 1 = Edit.
+  final int initialTabIndex;
 
   const MoneyPlanSectionScreen({
     super.key,
     required this.section,
     this.initialSubtype,
+    this.initialTabIndex = 0,
   });
 
   @override
@@ -33,7 +36,11 @@ class _MoneyPlanSectionScreenState extends State<MoneyPlanSectionScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 1),
+    );
     final defaults = SmsSyncSheet.plannerSubtypes[widget.section] ??
         SmsSyncSheet.plannerSubtypes[PlannerSections.essentials]!;
     _selectedSubtype = widget.initialSubtype != null &&
@@ -552,6 +559,7 @@ class _SectionEditTab extends StatefulWidget {
 class _SectionEditTabState extends State<_SectionEditTab> {
   late final TextEditingController _incomeMonthly;
   late final TextEditingController _incomeOther;
+  late int _cycleStartDay;
   late final TextEditingController _emergencyCurrent;
   late final TextEditingController _emergencyMonths;
   late final TextEditingController _emergencyMonthly;
@@ -590,6 +598,7 @@ class _SectionEditTabState extends State<_SectionEditTab> {
     _incomeOther = TextEditingController(
       text: plan.income.otherIncome.toStringAsFixed(0),
     );
+    _cycleStartDay = plan.cycleStartDay.clamp(1, 28);
     _emergencyCurrent = TextEditingController(
       text: plan.emergencyFund.currentSavings.toStringAsFixed(0),
     );
@@ -958,6 +967,7 @@ class _SectionEditTabState extends State<_SectionEditTab> {
               monthlyIncome: _parse(_incomeMonthly.text),
               otherIncome: _parse(_incomeOther.text),
             ),
+            cycleStartDay: _cycleStartDay,
           );
           break;
         case PlannerSections.personal:
@@ -1096,6 +1106,25 @@ class _SectionEditTabState extends State<_SectionEditTab> {
             controller: _incomeOther,
             keyboardType: TextInputType.number,
             decoration: _amountDeco('Other income'),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<int>(
+            value: _cycleStartDay,
+            decoration: const InputDecoration(
+              labelText: 'Budget month starts on day',
+              helperText: 'Day 7 means each cycle runs 7th → next 7th',
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              for (var d = 1; d <= 28; d++)
+                DropdownMenuItem(
+                  value: d,
+                  child: Text(d == 1 ? '1 (calendar month)' : 'Day $d'),
+                ),
+            ],
+            onChanged: (v) {
+              if (v != null) setState(() => _cycleStartDay = v);
+            },
           ),
         ];
       case PlannerSections.personal:

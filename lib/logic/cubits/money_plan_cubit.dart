@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../data/models/money_plan_model.dart';
 import '../../data/repositories/money_plan_repository.dart';
 import '../../data/services/money_plan_engine.dart';
-import '../../data/services/overlay_cache_service.dart';
 
 abstract class MoneyPlanState extends Equatable {
   @override
@@ -77,7 +76,6 @@ class MoneyPlanCubit extends Cubit<MoneyPlanState> {
           plan: refreshed,
           snapshot: _engine.analyze(refreshed),
         ));
-        OverlayCacheService.syncFromLocalDatabase();
       },
       onError: (error) {
         emit(MoneyPlanError(error.toString()));
@@ -99,11 +97,14 @@ class MoneyPlanCubit extends Cubit<MoneyPlanState> {
     await savePlan(plan.copyWith(setupComplete: true));
   }
 
-  Future<void> updateIncome(PlanIncome income) async {
+  Future<void> updateIncome(PlanIncome income, {int? cycleStartDay}) async {
     final current = _currentPlan;
     if (current == null) return;
     final previous = current.income.availableMonthlyIncome;
-    final next = current.copyWith(income: income);
+    final next = current.copyWith(
+      income: income,
+      cycleStartDay: cycleStartDay,
+    );
     final delta = income.availableMonthlyIncome - previous;
 
     ReallocationSuggestion? suggestion;
@@ -122,6 +123,15 @@ class MoneyPlanCubit extends Cubit<MoneyPlanState> {
       );
     }
     await _saveAndEmit(next, suggestion: suggestion);
+  }
+
+  /// Updates only the budget month start day (1–28).
+  Future<void> updateCycleStartDay(int day) async {
+    final current = _currentPlan;
+    if (current == null) return;
+    final nextDay = day.clamp(1, 28);
+    if (current.cycleStartDay == nextDay) return;
+    await _saveAndEmit(current.copyWith(cycleStartDay: nextDay));
   }
 
   Future<void> updateExpenses(List<PlanExpense> expenses) async {

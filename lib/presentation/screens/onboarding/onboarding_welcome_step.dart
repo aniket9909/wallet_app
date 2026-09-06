@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/brand_colors.dart';
+import '../../theme/onboarding_assets.dart';
 import 'onboarding_info_card.dart';
 
 class OnboardingWelcomeStep extends StatelessWidget {
@@ -38,7 +39,7 @@ class OnboardingWelcomeStep extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 const OnboardingInfoCard(
-                  icon: Icons.account_balance_wallet_outlined,
+                  imageAsset: OnboardingAssets.accounts,
                   iconColor: BrandColors.blue,
                   title: '1 · Add an account',
                   body:
@@ -47,7 +48,7 @@ class OnboardingWelcomeStep extends StatelessWidget {
                       'Tap Continue → saves your account and opens the budget step.',
                 ),
                 const OnboardingInfoCard(
-                  icon: Icons.pie_chart_outline,
+                  imageAsset: OnboardingAssets.budget,
                   iconColor: BrandColors.cyan,
                   title: '2 · Monthly budget',
                   body:
@@ -56,7 +57,7 @@ class OnboardingWelcomeStep extends StatelessWidget {
                       'Tap Finish → unlocks dashboard charts and “where money goes” view.',
                 ),
                 const OnboardingInfoCard(
-                  icon: Icons.home_outlined,
+                  imageAsset: OnboardingAssets.home,
                   iconColor: BrandColors.green,
                   title: '3 · Home dashboard',
                   body:

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import '../../theme/brand_colors.dart';
 
 class OnboardingInfoCard extends StatelessWidget {
-  final IconData icon;
+  final IconData? icon;
+  final String? imageAsset;
   final Color iconColor;
   final String title;
   final String body;
@@ -10,12 +11,13 @@ class OnboardingInfoCard extends StatelessWidget {
 
   const OnboardingInfoCard({
     super.key,
-    required this.icon,
+    this.icon,
+    this.imageAsset,
     required this.iconColor,
     required this.title,
     required this.body,
     required this.onTapHint,
-  });
+  }) : assert(icon != null || imageAsset != null);
 
   @override
   Widget build(BuildContext context) {
@@ -39,12 +41,23 @@ class OnboardingInfoCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            width: 56,
+            height: 56,
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: iconColor.withOpacity(0.12),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: iconColor, size: 22),
+            child: imageAsset != null
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
+                      imageAsset!,
+                      fit: BoxFit.cover,
+                      filterQuality: FilterQuality.high,
+                    ),
+                  )
+                : Icon(icon, color: iconColor, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(

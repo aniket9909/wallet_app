@@ -317,9 +317,19 @@ class FirebaseRealtimeService {
   Future<void> initializeUserData() async {
     if (!isAuthenticated) return;
 
-    final snapshot = await _userRef.get();
     final user = _auth.currentUser;
-    if (!snapshot.exists) {
+    final walletRef = _userRef.child('wallet');
+    final settingsRef = _userRef.child('settings');
+
+    // Parallel existence checks — avoids downloading the entire user tree.
+    final snaps = await Future.wait([
+      walletRef.get(),
+      settingsRef.get(),
+    ]);
+    final walletSnap = snaps[0];
+    final settingsSnap = snaps[1];
+
+    if (!walletSnap.exists && !settingsSnap.exists) {
       await _userRef.set({
         'wallet': const WalletDataModel(
           totalBalance: 0,
@@ -343,10 +353,8 @@ class FirebaseRealtimeService {
       return;
     }
 
-    // Ensure settings node exists for older accounts.
-    final settingsSnap = await _userRef.child('settings').get();
     if (!settingsSnap.exists) {
-      await _userRef.child('settings').set(
+      await settingsRef.set(
         SettingsModel(
           notificationsEnabled: true,
           expenseTypes: const [
@@ -361,10 +369,8 @@ class FirebaseRealtimeService {
       );
     }
 
-    // Ensure wallet node exists (partial user records).
-    final walletSnap = await _userRef.child('wallet').get();
     if (!walletSnap.exists) {
-      await _userRef.child('wallet').set(
+      await walletRef.set(
         const WalletDataModel(
           totalBalance: 0,
           totalIncome: 0,

@@ -61,7 +61,22 @@ class MoneyPlanDashboard extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Tap a section to edit amounts on this plan',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => showPlannerEditSheet(context),
+                  child: const Text('Edit plan'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -73,12 +88,13 @@ class MoneyPlanDashboard extends StatelessWidget {
                 PlanMetricCard(
                   label: 'Income',
                   value: moneyInr.format(snap.totalIncome),
-                  subtitle: 'Open section',
+                  subtitle: 'Edit amounts',
                   icon: Icons.payments_outlined,
                   color: const Color(0xFF6366F1),
                   onTap: () => openPlannerSection(
                     context,
                     section: PlannerSections.income,
+                    openEdit: true,
                   ),
                 ),
                 PlanMetricCard(
@@ -90,6 +106,7 @@ class MoneyPlanDashboard extends StatelessWidget {
                   onTap: () => openPlannerSection(
                     context,
                     section: PlannerSections.essentials,
+                    openEdit: true,
                   ),
                 ),
                 PlanMetricCard(
@@ -102,6 +119,7 @@ class MoneyPlanDashboard extends StatelessWidget {
                   onTap: () => openPlannerSection(
                     context,
                     section: PlannerSections.investment,
+                    openEdit: true,
                   ),
                 ),
                 PlanMetricCard(
@@ -114,6 +132,7 @@ class MoneyPlanDashboard extends StatelessWidget {
                   onTap: () => openPlannerSection(
                     context,
                     section: PlannerSections.emergency,
+                    openEdit: true,
                   ),
                 ),
                 PlanMetricCard(
@@ -125,6 +144,7 @@ class MoneyPlanDashboard extends StatelessWidget {
                   onTap: () => openPlannerSection(
                     context,
                     section: PlannerSections.goals,
+                    openEdit: true,
                   ),
                 ),
                 PlanMetricCard(
@@ -136,6 +156,7 @@ class MoneyPlanDashboard extends StatelessWidget {
                   onTap: () => openPlannerSection(
                     context,
                     section: PlannerSections.debt,
+                    openEdit: true,
                   ),
                 ),
                 PlanMetricCard(
@@ -147,6 +168,7 @@ class MoneyPlanDashboard extends StatelessWidget {
                   onTap: () => openPlannerSection(
                     context,
                     section: PlannerSections.personal,
+                    openEdit: true,
                   ),
                 ),
               ],

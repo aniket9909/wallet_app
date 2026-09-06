@@ -37,13 +37,17 @@ import 'logic/cubits/money_plan_cubit.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
+  // Firebase is required for auth before first route; open SQLite after first frame.
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  await LocalAppDatabase.instance.database;
 
   runApp(const MyApp());
+
+  // Warm local DB without blocking the first paint / splash.
+  // ignore: unawaited_futures
+  LocalAppDatabase.instance.database;
 }
 
 class MyApp extends StatefulWidget {
@@ -76,10 +80,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (state != AppLifecycleState.resumed) return;
     final ctx = navigatorKey.currentContext;
     if (ctx == null) return;
-    try {
-      OfflineSyncService.instance.flush(ctx.read<FirebaseRealtimeService>());
-      OverlayCacheService.syncFromLocalDatabase();
-    } catch (_) {}
+    // Debounced background work — do not block resume / Home.
+    Future<void>.delayed(const Duration(seconds: 1), () {
+      try {
+        OfflineSyncService.instance.flush(ctx.read<FirebaseRealtimeService>());
+        OverlayCacheService.syncFromLocalDatabase(force: false);
+      } catch (_) {}
+    });
   }
 
   @override

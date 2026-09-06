@@ -41,6 +41,7 @@ class BrandAppIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final px = (size * MediaQuery.devicePixelRatioOf(context)).round();
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: Image.asset(
@@ -48,7 +49,9 @@ class BrandAppIcon extends StatelessWidget {
         width: size,
         height: size,
         fit: BoxFit.cover,
-        filterQuality: FilterQuality.high,
+        filterQuality: FilterQuality.medium,
+        cacheWidth: px,
+        cacheHeight: px,
       ),
     );
   }

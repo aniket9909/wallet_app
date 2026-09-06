@@ -21,15 +21,21 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
   }
 
   Future<void> _navigateToNextScreen() async {
-    await Future.delayed(const Duration(seconds: 3));
-
-    if (!mounted) return;
+    // Run auth bootstrap immediately; only keep a short brand moment in parallel.
+    final minBrand = Future<void>.delayed(const Duration(milliseconds: 600));
 
     final user = FirebaseAuth.instance.currentUser;
+    late final bool ok;
+    if (user != null) {
+      ok = await AuthBootstrap.setup(context);
+    } else {
+      ok = false;
+    }
+
+    await minBrand;
+    if (!mounted) return;
 
     if (user != null) {
-      final ok = await AuthBootstrap.setup(context);
-      if (!mounted) return;
       if (ok) {
         await PermissionSetupGate.navigateAfterAuth(context);
       } else {
@@ -51,8 +57,6 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
@@ -79,16 +83,16 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    BrandLogo(width: width * 0.72)
+                    const BrandAppIcon(size: 112)
                         .animate()
-                        .fadeIn(duration: 500.ms)
+                        .fadeIn(duration: 400.ms)
                         .scale(
                           begin: const Offset(0.94, 0.94),
                           end: const Offset(1, 1),
-                          duration: 700.ms,
+                          duration: 500.ms,
                           curve: Curves.easeOut,
                         ),
-                    const SizedBox(height: 36),
+                    const SizedBox(height: 28),
                     LayoutBuilder(
                       builder: (context, c) {
                         return Container(
@@ -119,13 +123,22 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'Preparing your wallet...',
+                      'Opening Arthigo...',
                       style: TextStyle(
                         color: BrandColors.navy,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
-                    ).animate().fadeIn(duration: 500.ms, delay: 200.ms),
+                    ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Loading wallet for Home — heavy sync runs in the background.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: BrandColors.muted,
+                        fontSize: 12,
+                      ),
+                    ).animate().fadeIn(duration: 400.ms, delay: 180.ms),
                   ],
                 ),
               ),
@@ -143,7 +156,7 @@ class _SplashScreenNewState extends State<SplashScreenNew> {
                 fontSize: 12,
                 letterSpacing: 0.6,
               ),
-            ).animate().fadeIn(duration: 600.ms, delay: 300.ms),
+            ).animate().fadeIn(duration: 400.ms, delay: 150.ms),
           ),
         ],
       ),

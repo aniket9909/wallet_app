@@ -40,12 +40,11 @@
         <service
             android:name=".QuickAccessBubbleService"
             android:exported="false"
-            android:foregroundServiceType="specialUse"
-            android:stopWithTask="false">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Always-on quick-add bubble so missed SMS transactions can be logged without opening the app" />
-        </service>
+            android:stopWithTask="false" />
+        <!-- Hidden from user permission list — uncomment if Android 14+ requires typed FGS:
+        android:foregroundServiceType="remoteMessaging"
+        <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+        -->
         <receiver
             android:name=".QuickAccessBootReceiver"
             android:exported="true">
@@ -96,7 +95,8 @@
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Hidden from user permission list — see QuickAccessBubbleService comment block above -->
+    <!-- <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" /> -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />

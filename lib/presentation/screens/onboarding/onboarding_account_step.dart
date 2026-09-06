@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../data/models/account_model.dart';
 import '../../../logic/cubits/account_cubit.dart';
 import '../../theme/brand_colors.dart';
+import '../../theme/onboarding_assets.dart';
 import 'onboarding_info_card.dart';
 
 class OnboardingAccountStep extends StatefulWidget {
@@ -70,7 +71,18 @@ class _OnboardingAccountStepState extends State<OnboardingAccountStep> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Center(child: BrandAppIcon(size: 80)),
+                  Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Image.asset(
+                        OnboardingAssets.accounts,
+                        width: 120,
+                        height: 120,
+                        fit: BoxFit.cover,
+                        filterQuality: FilterQuality.high,
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 20),
                   Text(
                     'Add your first account',
@@ -197,7 +209,12 @@ class _OnboardingAccountStepState extends State<OnboardingAccountStep> {
                           value: type,
                           child: Row(
                             children: [
-                              Icon(_iconFor(type), size: 20),
+                              Image.asset(
+                                OnboardingAssets.accountTypeIcon(type),
+                                width: 22,
+                                height: 22,
+                                fit: BoxFit.contain,
+                              ),
                               const SizedBox(width: 10),
                               Text(type),
                             ],
@@ -257,18 +274,4 @@ class _OnboardingAccountStepState extends State<OnboardingAccountStep> {
     );
   }
 
-  IconData _iconFor(String type) {
-    switch (type) {
-      case 'Bank':
-        return Icons.account_balance;
-      case 'Cash':
-        return Icons.money;
-      case 'UPI':
-        return Icons.qr_code_2;
-      case 'Credit Card':
-        return Icons.credit_card;
-      default:
-        return Icons.account_balance_wallet;
-    }
-  }
 }

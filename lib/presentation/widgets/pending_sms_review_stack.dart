@@ -24,21 +24,28 @@ class PendingSmsReviewGate {
   static void reset() => _shownThisSession = false;
 }
 
-/// Modern swipe card for unsynced SMS (last 5 days).
-/// Swipe right = skip · swipe left = remove · Sync saves with bank + category.
+/// Lightweight swipe card for the newest unsynced SMS (max 5).
 class PendingSmsReviewStack extends StatefulWidget {
   final List<SmsMessageModel> messages;
 
   const PendingSmsReviewStack({super.key, required this.messages});
 
+  static const maxReviewCount = 5;
+
   static Future<void> showIfNeeded(BuildContext context) async {
     if (PendingSmsReviewGate.alreadyShown) return;
     if (!context.mounted) return;
 
+    // Let the dashboard paint first so the popup does not jank open.
+    await Future<void>.delayed(const Duration(milliseconds: 450));
+    if (!context.mounted || PendingSmsReviewGate.alreadyShown) return;
+
     List<SmsMessageModel> pending = const [];
     try {
-      pending =
-          await context.read<SmsCubit>().getPendingUnsyncedRecent(days: 5);
+      pending = await context.read<SmsCubit>().getPendingUnsyncedRecent(
+            days: 5,
+            limit: maxReviewCount,
+          );
     } catch (_) {
       return;
     }
@@ -47,30 +54,19 @@ class PendingSmsReviewStack extends StatefulWidget {
 
     PendingSmsReviewGate.markShown();
 
-    try {
-      context.read<AccountCubit>().loadAccounts();
-      context.read<MoneyPlanCubit>().loadPlan();
-    } catch (_) {}
-
     await showGeneralDialog<void>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       barrierLabel: 'Pending SMS review',
-      barrierColor: const Color(0xFF0F172A).withOpacity(0.72),
-      transitionDuration: const Duration(milliseconds: 280),
+      barrierColor: const Color(0xFF0F172A).withOpacity(0.55),
+      transitionDuration: const Duration(milliseconds: 160),
       pageBuilder: (ctx, anim, secondary) {
         return PendingSmsReviewStack(messages: pending);
       },
       transitionBuilder: (ctx, anim, secondary, child) {
         return FadeTransition(
-          opacity: anim,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, 0.08),
-              end: Offset.zero,
-            ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
-            child: child,
-          ),
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+          child: child,
         );
       },
     );
@@ -82,8 +78,9 @@ class PendingSmsReviewStack extends StatefulWidget {
 
 class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
   late List<SmsMessageModel> _queue;
-  double _dragDx = 0;
+  final ValueNotifier<double> _dragDx = ValueNotifier<double>(0);
   bool _busy = false;
+  bool _closing = false;
 
   late TextEditingController _amountController;
   late TextEditingController _descriptionController;
@@ -97,7 +94,9 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
   @override
   void initState() {
     super.initState();
-    _queue = List<SmsMessageModel>.from(widget.messages);
+    _queue = List<SmsMessageModel>.from(
+      widget.messages.take(PendingSmsReviewStack.maxReviewCount),
+    );
     _amountController = TextEditingController();
     _descriptionController = TextEditingController();
     _bindCurrentSms();
@@ -105,6 +104,7 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
 
   @override
   void dispose() {
+    _dragDx.dispose();
     _amountController.dispose();
     _descriptionController.dispose();
     super.dispose();
@@ -135,7 +135,7 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
       isCredit: _txnType == TransactionType.credit,
     );
     final subs = PlannerCategories.subtypesFor(_selectedSection, plan: _plan());
-    _selectedSubtype = subs.first;
+    _selectedSubtype = subs.isNotEmpty ? subs.first : 'Other';
 
     _amountController.text =
         sms.amount != null ? sms.amount!.toStringAsFixed(2) : '';
@@ -151,17 +151,19 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
     setState(() {
       _selectedSection = section;
       _selectedSubtype =
-          subs.contains(_selectedSubtype) ? _selectedSubtype : subs.first;
+          subs.contains(_selectedSubtype) ? _selectedSubtype : (subs.isNotEmpty ? subs.first : 'Other');
     });
   }
 
   void _closeAll() {
-    if (mounted) Navigator.of(context).pop();
+    if (_closing || !mounted) return;
+    _closing = true;
+    Navigator.of(context).pop();
   }
 
   Future<void> _advance() async {
-    if (_queue.isEmpty && mounted) {
-      Navigator.of(context).pop();
+    if (_queue.isEmpty) {
+      _closeAll();
       return;
     }
     setState(_bindCurrentSms);
@@ -170,10 +172,8 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
   Future<void> _skipCurrent() async {
     if (_busy || _queue.isEmpty) return;
     setState(() {
-      _busy = true;
       _queue.removeAt(0);
-      _dragDx = 0;
-      _busy = false;
+      _dragDx.value = 0;
     });
     await _advance();
   }
@@ -185,7 +185,7 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
 
     try {
       if (sms.id != null) {
-        await context.read<SmsCubit>().markAsDecline(sms.id!);
+        await context.read<SmsCubit>().markAsDecline(sms.id!, reload: false);
       }
     } catch (_) {
       if (sms.id != null) {
@@ -196,7 +196,7 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
     if (!mounted) return;
     setState(() {
       _queue.removeWhere((m) => m.id == sms.id);
-      _dragDx = 0;
+      _dragDx.value = 0;
       _busy = false;
     });
     await _advance();
@@ -251,13 +251,13 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
 
       await context.read<TransactionCubit>().addTransaction(transaction);
       if (sms.id != null) {
-        await context.read<SmsCubit>().finalizeSync(sms.id!);
+        await context.read<SmsCubit>().finalizeSync(sms.id!, reload: false);
       }
 
       if (!mounted) return;
       setState(() {
         _queue.removeWhere((m) => m.id == sms.id);
-        _dragDx = 0;
+        _dragDx.value = 0;
         _busy = false;
       });
       _toast('Saved · $_selectedSection · $_selectedSubtype', Colors.green);
@@ -272,23 +272,29 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
 
   void _toast(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: color),
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: color,
+        duration: const Duration(milliseconds: 1400),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
   void _onHeaderDragUpdate(DragUpdateDetails d) {
     if (_busy) return;
-    setState(() => _dragDx += d.delta.dx);
+    _dragDx.value += d.delta.dx;
   }
 
   void _onHeaderDragEnd(DragEndDetails details) {
     if (_busy) return;
-    if (_dragDx <= -_swipeThreshold) {
+    final dx = _dragDx.value;
+    if (dx <= -_swipeThreshold) {
       _deleteCurrent();
-    } else if (_dragDx >= _swipeThreshold) {
+    } else if (dx >= _swipeThreshold) {
       _skipCurrent();
     } else {
-      setState(() => _dragDx = 0);
+      _dragDx.value = 0;
     }
   }
 
@@ -298,11 +304,8 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
     final sms = _current;
     final isCredit = _txnType == TransactionType.credit;
     final accent = isCredit ? const Color(0xFF059669) : const Color(0xFFDC2626);
-    final currency = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
+    final currency = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
     final dateFmt = DateFormat('dd MMM · hh:mm a');
-    final rotation = (_dragDx / 420).clamp(-0.12, 0.12);
-    final skipOpacity = (_dragDx / _swipeThreshold).clamp(0.0, 1.0);
-    final deleteOpacity = (-_dragDx / _swipeThreshold).clamp(0.0, 1.0);
 
     return Material(
       color: Colors.transparent,
@@ -326,38 +329,56 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
                           style: TextStyle(color: Colors.white, fontSize: 18),
                         ),
                       )
-                    : Transform.translate(
-                        offset: Offset(_dragDx * 0.35, 0),
-                        child: Transform.rotate(
-                          angle: rotation,
-                          child: Stack(
-                            children: [
-                              _modernCard(
-                                theme: theme,
-                                sms: sms,
-                                accent: accent,
-                                isCredit: isCredit,
-                                currency: currency,
-                                dateFmt: dateFmt,
+                    : ValueListenableBuilder<double>(
+                        valueListenable: _dragDx,
+                        builder: (context, dragDx, child) {
+                          final rotation =
+                              (dragDx / 420).clamp(-0.12, 0.12);
+                          final skipOpacity =
+                              (dragDx / _swipeThreshold).clamp(0.0, 1.0);
+                          final deleteOpacity =
+                              (-dragDx / _swipeThreshold).clamp(0.0, 1.0);
+                          return Transform.translate(
+                            offset: Offset(dragDx * 0.35, 0),
+                            child: Transform.rotate(
+                              angle: rotation,
+                              child: Stack(
+                                children: [
+                                  child!,
+                                  Positioned(
+                                    top: 18,
+                                    left: 18,
+                                    child: Opacity(
+                                      opacity: deleteOpacity,
+                                      child: _stamp(
+                                        'REMOVE',
+                                        const Color(0xFFFECACA),
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 18,
+                                    right: 18,
+                                    child: Opacity(
+                                      opacity: skipOpacity,
+                                      child: _stamp(
+                                        'SKIP',
+                                        const Color(0xFFBBF7D0),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              Positioned(
-                                top: 18,
-                                left: 18,
-                                child: Opacity(
-                                  opacity: deleteOpacity,
-                                  child: _stamp('REMOVE', const Color(0xFFFECACA)),
-                                ),
-                              ),
-                              Positioned(
-                                top: 18,
-                                right: 18,
-                                child: Opacity(
-                                  opacity: skipOpacity,
-                                  child: _stamp('SKIP', const Color(0xFFBBF7D0)),
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          );
+                        },
+                        child: _modernCard(
+                          theme: theme,
+                          sms: sms,
+                          accent: accent,
+                          isCredit: isCredit,
+                          currency: currency,
+                          dateFmt: dateFmt,
                         ),
                       ),
               ),
@@ -407,7 +428,7 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
               Text(
                 _queue.isEmpty
                     ? 'Nothing left'
-                    : '${_queue.length} unsynced · last 5 days',
+                    : '${_queue.length} of ${PendingSmsReviewStack.maxReviewCount} latest',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.7),
                   fontSize: 12.5,
@@ -438,35 +459,25 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
       width: double.infinity,
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.28),
-            blurRadius: 28,
-            offset: const Offset(0, 14),
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          // Swipeable SMS header
           GestureDetector(
             onHorizontalDragUpdate: _onHeaderDragUpdate,
             onHorizontalDragEnd: _onHeaderDragEnd,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    accent,
-                    Color.lerp(accent, const Color(0xFF0F172A), 0.35)!,
-                  ],
-                ),
-              ),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              color: accent,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -474,12 +485,6 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
                     children: [
                       _pill(isCredit ? 'CREDIT' : 'DEBIT'),
                       const Spacer(),
-                      Icon(
-                        Icons.swipe,
-                        color: Colors.white.withOpacity(0.75),
-                        size: 18,
-                      ),
-                      const SizedBox(width: 6),
                       Text(
                         dateFmt.format(sms.date),
                         style: TextStyle(
@@ -489,28 +494,27 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Text(
-                    sms.amount != null
-                        ? currency.format(sms.amount)
-                        : '₹ —',
+                    sms.amount != null ? currency.format(sms.amount) : '₹ —',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 32,
+                      fontSize: 28,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: -0.6,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     sms.address.isEmpty ? 'Unknown sender' : sms.address,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.92),
                       fontWeight: FontWeight.w700,
-                      fontSize: 14,
+                      fontSize: 13,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Text(
                     sms.body,
                     maxLines: 2,
@@ -518,26 +522,17 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.82),
                       height: 1.3,
-                      fontSize: 12.5,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '← remove   ·   skip →',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.65),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
                     ),
                   ),
                 ],
               ),
             ),
           ),
-
-          // Form: bank + category + subcategory + details
           Expanded(
             child: BlocBuilder<AccountCubit, AccountState>(
+              buildWhen: (prev, next) =>
+                  next is AccountLoaded || next is AccountLoading,
               builder: (context, accountState) {
                 final accounts = accountState is AccountLoaded
                     ? accountState.accounts
@@ -551,7 +546,7 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
                 }
 
                 return ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
                   children: [
                     _sectionLabel('Bank account'),
                     const SizedBox(height: 8),
@@ -587,7 +582,7 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
                           );
                         }).toList(),
                       ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     _sectionLabel('Category'),
                     const SizedBox(height: 8),
                     Wrap(
@@ -613,13 +608,14 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
                             fontSize: 12,
                           ),
                           side: BorderSide(
-                            color:
-                                selected ? color : Colors.grey.withOpacity(0.28),
+                            color: selected
+                                ? color
+                                : Colors.grey.withOpacity(0.28),
                           ),
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     _sectionLabel('Subcategory'),
                     const SizedBox(height: 8),
                     Wrap(
@@ -627,7 +623,8 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
                       runSpacing: 8,
                       children: subtypes.map((sub) {
                         final selected = _selectedSubtype == sub;
-                        final color = PlannerSections.colorFor(_selectedSection);
+                        final color =
+                            PlannerSections.colorFor(_selectedSection);
                         return FilterChip(
                           label: Text(sub),
                           selected: selected,
@@ -642,13 +639,14 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
                             fontSize: 12,
                           ),
                           side: BorderSide(
-                            color:
-                                selected ? color : Colors.grey.withOpacity(0.28),
+                            color: selected
+                                ? color
+                                : Colors.grey.withOpacity(0.28),
                           ),
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     _sectionLabel('Details'),
                     const SizedBox(height: 8),
                     Row(
@@ -724,7 +722,7 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.red.shade200,
               side: BorderSide(color: Colors.red.withOpacity(0.45)),
-              minimumSize: const Size.fromHeight(48),
+              minimumSize: const Size.fromHeight(46),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
@@ -739,15 +737,15 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
             onPressed: _busy ? null : _syncCurrent,
             style: FilledButton.styleFrom(
               backgroundColor: accent,
-              minimumSize: const Size.fromHeight(48),
+              minimumSize: const Size.fromHeight(46),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
             ),
             child: _busy
                 ? const SizedBox(
-                    width: 20,
-                    height: 20,
+                    width: 18,
+                    height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       color: Colors.white,
@@ -763,7 +761,7 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.white70,
               side: BorderSide(color: Colors.white.withOpacity(0.35)),
-              minimumSize: const Size.fromHeight(48),
+              minimumSize: const Size.fromHeight(46),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
@@ -782,7 +780,6 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
         fontWeight: FontWeight.w800,
         fontSize: 13,
         color: Colors.grey[850],
-        letterSpacing: 0.2,
       ),
     );
   }
@@ -812,7 +809,6 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
           color: Colors.white,
           fontWeight: FontWeight.w800,
           fontSize: 11,
-          letterSpacing: 0.7,
         ),
       ),
     );
@@ -827,8 +823,7 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
+      child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: selected ? color.withOpacity(0.12) : Colors.grey.withOpacity(0.06),
@@ -885,7 +880,6 @@ class _PendingSmsReviewStackState extends State<PendingSmsReviewStack> {
             color: color,
             fontWeight: FontWeight.w900,
             fontSize: 16,
-            letterSpacing: 1.1,
           ),
         ),
       ),

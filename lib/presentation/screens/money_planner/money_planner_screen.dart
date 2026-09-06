@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/utils/planner_navigation.dart';
 import '../../../logic/cubits/money_plan_cubit.dart';
 import 'money_plan_dashboard.dart';
 import 'money_plan_setup_wizard.dart';
@@ -9,6 +10,36 @@ import 'monthly_tracker_screen.dart';
 /// Replaces the old Smart Savings hub with the All-in-One Money Planner.
 class MoneyPlannerScreen extends StatelessWidget {
   const MoneyPlannerScreen({super.key});
+
+  Future<void> _confirmRerunSetup(
+    BuildContext context,
+    MoneyPlanLoaded loaded,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Re-run full setup?'),
+        content: const Text(
+          'Opens the setup wizard again. Prefer Edit for changing amounts on the current plan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Re-run setup'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true && context.mounted) {
+      await context.read<MoneyPlanCubit>().savePlan(
+            loaded.plan.copyWith(setupComplete: false),
+          );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +96,7 @@ class MoneyPlannerScreen extends StatelessWidget {
               return Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
                     child: Row(
                       children: [
                         Expanded(
@@ -76,6 +107,11 @@ class MoneyPlannerScreen extends StatelessWidget {
                                 .headlineMedium
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => showPlannerEditSheet(context),
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          label: const Text('Edit'),
                         ),
                         IconButton(
                           tooltip: 'Monthly Tracker',
@@ -88,35 +124,19 @@ class MoneyPlannerScreen extends StatelessWidget {
                           },
                           icon: const Icon(Icons.calendar_month_outlined),
                         ),
-                        IconButton(
-                          tooltip: 'Reset setup',
-                          onPressed: () async {
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('Re-run setup?'),
-                                content: const Text(
-                                  'This opens the planner wizard again. Your current plan stays until you finish and save.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx, false),
-                                    child: const Text('Cancel'),
-                                  ),
-                                  FilledButton(
-                                    onPressed: () => Navigator.pop(ctx, true),
-                                    child: const Text('Continue'),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (confirm == true && context.mounted) {
-                              await context.read<MoneyPlanCubit>().savePlan(
-                                    loaded.plan.copyWith(setupComplete: false),
-                                  );
+                        PopupMenuButton<String>(
+                          tooltip: 'More',
+                          onSelected: (value) {
+                            if (value == 'rerun') {
+                              _confirmRerunSetup(context, loaded);
                             }
                           },
-                          icon: const Icon(Icons.tune),
+                          itemBuilder: (ctx) => const [
+                            PopupMenuItem(
+                              value: 'rerun',
+                              child: Text('Re-run full setup…'),
+                            ),
+                          ],
                         ),
                       ],
                     ),

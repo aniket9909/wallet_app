@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+import '../../logic/cubits/wallet_cubit.dart';
 import '../theme/brand_colors.dart';
 import '../widgets/pending_sms_review_stack.dart';
 import 'dashboard_screen.dart';
@@ -17,6 +20,7 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
+  bool _scheduledSmsReview = false;
 
   final List<Widget> _screens = const [
     DashboardScreen(),
@@ -26,10 +30,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     SettingsScreen(),
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+  void _maybeShowSmsReview(WalletState state) {
+    if (_scheduledSmsReview) return;
+    if (state is! WalletLoaded) return;
+    _scheduledSmsReview = true;
+
+    // Show after dashboard is visible — never during loading.
+    Future<void>.delayed(const Duration(milliseconds: 900), () {
       if (!mounted) return;
       PendingSmsReviewStack.showIfNeeded(context);
     });
@@ -37,12 +44,21 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _screens[_selectedIndex],
-      bottomNavigationBar: _SideNavBar(
-        selectedIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
-      ).animate().slideY(begin: 1, end: 0, duration: 400.ms, curve: Curves.easeOut),
+    return BlocListener<WalletCubit, WalletState>(
+      listenWhen: (prev, next) => next is WalletLoaded,
+      listener: (context, state) => _maybeShowSmsReview(state),
+      child: Scaffold(
+        body: _screens[_selectedIndex],
+        bottomNavigationBar: _SideNavBar(
+          selectedIndex: _selectedIndex,
+          onTap: (index) => setState(() => _selectedIndex = index),
+        ).animate().slideY(
+              begin: 1,
+              end: 0,
+              duration: 350.ms,
+              curve: Curves.easeOut,
+            ),
+      ),
     );
   }
 }
@@ -183,4 +199,3 @@ class _NavIcon extends StatelessWidget {
     );
   }
 }
-

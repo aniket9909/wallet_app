@@ -110,15 +110,23 @@ class MainActivity : FlutterActivity() {
                     val uid = args?.get("uid") as? String
                     val idToken = args?.get("idToken") as? String
                     val dbUrl = args?.get("dbUrl") as? String
-                    OverlayFirebaseRepository.saveCache(
-                        this,
-                        accountsJson,
-                        categoriesJson,
-                        plannerSubtypesJson,
-                        uid,
-                        idToken,
-                        dbUrl,
-                    )
+                    // Never block the Flutter UI thread on disk/SQLite.
+                    Thread {
+                        try {
+                            OverlayFirebaseRepository.saveCache(
+                                this,
+                                accountsJson,
+                                categoriesJson,
+                                plannerSubtypesJson,
+                                uid,
+                                idToken,
+                                dbUrl,
+                                writeSqlite = false,
+                            )
+                        } catch (e: Exception) {
+                            Log.w(TAG, "cacheOverlayData failed: ${e.message}")
+                        }
+                    }.start()
                     result.success(true)
                 }
                 "showTestSmsOverlay" -> {

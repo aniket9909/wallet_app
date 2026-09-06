@@ -15,10 +15,21 @@ import '../../presentation/widgets/sms_sync_sheet.dart';
 /// SMS overlay works when the Flutter app is closed (online or offline).
 class OverlayCacheService {
   static const MethodChannel _channel = MethodChannel('com.aniket.ewallet/sms');
+  static DateTime? _lastSyncAt;
+  static const _minInterval = Duration(seconds: 20);
 
   /// Reads from [LocalAppDatabase] and pushes to native overlay cache.
-  static Future<void> syncFromLocalDatabase() async {
+  /// Skips if a sync already ran recently unless [force] is true.
+  static Future<void> syncFromLocalDatabase({bool force = false}) async {
     if (!Platform.isAndroid) return;
+
+    final now = DateTime.now();
+    if (!force &&
+        _lastSyncAt != null &&
+        now.difference(_lastSyncAt!) < _minInterval) {
+      return;
+    }
+    _lastSyncAt = now;
 
     final db = LocalAppDatabase.instance;
     final accounts = await db.getAccounts();

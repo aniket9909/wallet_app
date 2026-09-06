@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../core/utils/budget_cycle.dart';
 import '../../data/models/money_plan_model.dart';
-import '../../data/models/partial_transaction_model.dart';
 import '../../data/models/transaction_model_new.dart';
 import '../../data/services/monthly_tracker_engine.dart';
 import '../../logic/cubits/money_plan_cubit.dart';
@@ -33,34 +33,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _selectedMonth = DateTime(now.year, now.month);
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _checkTodayUnseenPartials();
-  }
-
-  void _checkTodayUnseenPartials() {
-    final partialCubit = context.read<PartialTransactionCubit>();
-    final todayUnseen = partialCubit.getTodayUnseenPartials();
-
-    if (todayUnseen.isNotEmpty && mounted) {
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          _showSmsReviewSheet(todayUnseen);
-        }
-      });
-    }
-  }
-
-  void _showSmsReviewSheet(List<PartialTransaction> partials) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _SmsReviewSheet(partials: partials),
-    );
-  }
-
   void _openMonthlyBreakdown() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const MonthlyTrackerScreen()),
@@ -88,7 +60,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: BlocBuilder<WalletCubit, WalletState>(
             builder: (context, walletState) {
               if (walletState is WalletLoading || walletState is WalletInitial) {
-                return const Center(child: CircularProgressIndicator());
+                return _DashboardLoadingView(
+                  message: walletState is WalletInitial
+                      ? 'Opening your dashboard...'
+                      : 'Syncing wallet data...',
+                );
               }
 
               if (walletState is WalletError) {
@@ -133,22 +109,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           : null;
                       final planConfigured =
                           planState is MoneyPlanLoaded && plan.setupComplete;
-
-                      final months =
-                          MonthlyTrackerEngine.availableMonths(allTxns);
+                      final cycleDay = plan.cycleStartDay;
+                      final currentCycle =
+                          BudgetCycle.containing(DateTime.now(), cycleDay);
+                      final months = MonthlyTrackerEngine.availableMonths(
+                        allTxns,
+                        cycleStartDay: cycleDay,
+                      );
+                      final aligned =
+                          BudgetCycle.fromStart(_selectedMonth, cycleDay).start;
+                      final selected = months.any((m) =>
+                              m.year == aligned.year &&
+                              m.month == aligned.month &&
+                              m.day == aligned.day)
+                          ? aligned
+                          : currentCycle.start;
                       if (!months.any((m) =>
-                          m.year == _selectedMonth.year &&
-                          m.month == _selectedMonth.month)) {
-                        months.insert(0, _selectedMonth);
+                          m.year == selected.year &&
+                          m.month == selected.month &&
+                          m.day == selected.day)) {
+                        months.insert(0, selected);
                       }
 
-                      final monthTxns =
-                          transactionsForMonth(allTxns, _selectedMonth);
+                      final monthTxns = transactionsForMonth(
+                        allTxns,
+                        selected,
+                        cycleStartDay: cycleDay,
+                      );
                       final cashFlow = MonthCashFlow.fromTransactions(monthTxns);
                       final tracker = MonthlyTrackerEngine.build(
                         plan: plan,
                         transactions: allTxns,
-                        month: _selectedMonth,
+                        month: selected,
                       );
 
                       return RefreshIndicator(
@@ -165,8 +157,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             const SizedBox(height: 14),
                             _buildPartialTransactionsBanner(context),
                             DashboardMonthPicker(
-                              selectedMonth: _selectedMonth,
+                              selectedMonth: selected,
                               months: months,
+                              cycleStartDay: cycleDay,
                               onChanged: (m) =>
                                   setState(() => _selectedMonth = m),
                             ).animate().fadeIn(duration: 350.ms),
@@ -174,7 +167,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             DashboardBalanceHero(
                               totalBalance: walletState.wallet.totalBalance,
                               cashFlow: cashFlow,
-                              month: _selectedMonth,
+                              month: selected,
+                              cycleStartDay: cycleDay,
                             ).animate().fadeIn(duration: 400.ms).slideY(
                                   begin: 0.08,
                                   end: 0,
@@ -344,211 +338,48 @@ Widget _buildHeader(BuildContext context) {
   ).animate().fadeIn(duration: 350.ms);
 }
 
-class _SmsReviewSheet extends StatefulWidget {
-  final List<PartialTransaction> partials;
-  const _SmsReviewSheet({required this.partials});
+class _DashboardLoadingView extends StatelessWidget {
+  final String message;
 
-  @override
-  State<_SmsReviewSheet> createState() => _SmsReviewSheetState();
-}
-
-class _SmsReviewSheetState extends State<_SmsReviewSheet> {
-  late List<PartialTransaction> _pending;
-
-  @override
-  void initState() {
-    super.initState();
-    _pending = List.of(widget.partials);
-  }
+  const _DashboardLoadingView({required this.message});
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.5,
-      minChildSize: 0.35,
-      maxChildSize: 0.9,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.15),
-                blurRadius: 16,
-                offset: const Offset(0, -6),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Detected SMS Transactions',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      '${_pending.length}',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: _pending.isEmpty
-                    ? const Center(
-                        child: Text('No pending SMS transactions'),
-                      )
-                    : ListView.builder(
-                        controller: scrollController,
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                        itemCount: _pending.length,
-                        itemBuilder: (context, index) {
-                          final p = _pending[index];
-                          return _SmsPartialTile(
-                            partial: p,
-                            onAccept: () => _onAccept(p),
-                            onReject: () => _onReject(p),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _onAccept(PartialTransaction p) {
-    final transaction = TransactionModelNew(
-      id: '',
-      type: p.type,
-      amount: p.amount,
-      description: p.description,
-      category: 'SMS Import',
-      account: p.accountName,
-      date: p.date,
-      note: p.smsBody,
-    );
-    context.read<TransactionCubit>().addTransaction(transaction);
-
-    if (p.id.isNotEmpty && !p.id.startsWith('test-')) {
-      context.read<PartialTransactionCubit>().markAsSeen(p.id);
-      context.read<PartialTransactionCubit>().deletePartialTransaction(p.id);
-    }
-
-    setState(() {
-      _pending.removeWhere((e) => e.id == p.id);
-    });
-  }
-
-  void _onReject(PartialTransaction p) {
-    if (p.id.isNotEmpty && !p.id.startsWith('test-')) {
-      context.read<PartialTransactionCubit>().markAsSeen(p.id);
-    }
-
-    setState(() {
-      _pending.removeWhere((e) => e.id == p.id);
-    });
-  }
-}
-
-class _SmsPartialTile extends StatelessWidget {
-  final PartialTransaction partial;
-  final VoidCallback onAccept;
-  final VoidCallback onReject;
-
-  const _SmsPartialTile({
-    required this.partial,
-    required this.onAccept,
-    required this.onReject,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isCredit = partial.type == TransactionType.credit;
-    final color = isCredit ? Colors.green : Colors.red;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    return Center(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 32),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: color.withOpacity(0.12),
-                  child: Icon(
-                    isCredit ? Icons.arrow_downward : Icons.arrow_upward,
-                    color: color,
-                    size: 18,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    partial.accountName,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${isCredit ? '+' : '-'}₹${partial.amount.toStringAsFixed(0)}',
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+            const BrandAppIcon(size: 72),
+            const SizedBox(height: 24),
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.8,
+                color: BrandColors.blue,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: BrandColors.navy,
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
-              partial.smsBody,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: Colors.grey[700], fontSize: 12),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: onReject,
-                  child: const Text('Incorrect'),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: onAccept,
-                  child: const Text('Correct'),
-                ),
-              ],
+              'This only runs once after login. Your home screen opens as soon as wallet data is ready.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: BrandColors.muted,
+                fontSize: 12.5,
+                height: 1.4,
+              ),
             ),
           ],
         ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../data/repositories/sms_repository.dart';
@@ -66,9 +68,13 @@ class SmsCubit extends Cubit<SmsState> {
   }
 
   /// Pending unsynced credit/debit SMS from the last [days] days.
-  Future<List<SmsMessageModel>> getPendingUnsyncedRecent({int days = 5}) async {
+  /// Defaults to the newest [limit] only so the review popup stays light.
+  Future<List<SmsMessageModel>> getPendingUnsyncedRecent({
+    int days = 5,
+    int limit = 5,
+  }) async {
     final since = DateTime.now().subtract(Duration(days: days));
-    return _repository.getPendingUnsyncedSince(since);
+    return _repository.getPendingUnsyncedSince(since, limit: limit);
   }
 
   Future<SmsImportResult?> scanInbox() async {
@@ -125,17 +131,20 @@ class SmsCubit extends Cubit<SmsState> {
     }
   }
 
-  Future<void> finalizeSync(int id) async {
+  Future<void> finalizeSync(int id, {bool reload = true}) async {
     try {
       await _repository.markAsRead(id);
       await _repository.updateSmsStatus(id, SmsStatus.correct);
       final sms = await _repository.getSmsById(id);
       if (sms != null) {
-        await _repository.updateSmsInFirebase(
-          sms.copyWith(isRead: true, status: SmsStatus.correct),
+        // Fire-and-forget Firebase so the popup stays responsive.
+        unawaited(
+          _repository.updateSmsInFirebase(
+            sms.copyWith(isRead: true, status: SmsStatus.correct),
+          ),
         );
       }
-      await loadAllSms();
+      if (reload) await loadAllSms();
     } catch (e) {
       emit(SmsError(e.toString()));
     }
@@ -170,17 +179,20 @@ class SmsCubit extends Cubit<SmsState> {
     }
   }
 
-  Future<void> markAsDecline(int id) async {
+  Future<void> markAsDecline(int id, {bool reload = true}) async {
     try {
       final sms = await _repository.getSmsById(id);
       if (sms != null) {
         await _repository.updateSmsStatus(id, SmsStatus.decline);
-        await _repository.updateSmsInFirebase(sms.copyWith(status: SmsStatus.decline));
-        // Delete from local storage
+        unawaited(
+          _repository.updateSmsInFirebase(
+            sms.copyWith(status: SmsStatus.decline),
+          ),
+        );
         await _repository.deleteSms(id);
-        await _repository.deleteSmsFromFirebase(id.toString());
+        unawaited(_repository.deleteSmsFromFirebase(id.toString()));
       }
-      await loadAllSms();
+      if (reload) await loadAllSms();
     } catch (e) {
       emit(SmsError(e.toString()));
     }

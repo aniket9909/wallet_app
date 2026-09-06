@@ -5,6 +5,7 @@ import '../../../data/models/money_plan_model.dart';
 import '../../../logic/cubits/money_plan_cubit.dart';
 import '../../widgets/money_planner/money_plan_widgets.dart';
 import '../../theme/brand_colors.dart';
+import '../../theme/onboarding_assets.dart';
 
 class MoneyPlanSetupWizard extends StatefulWidget {
   final bool isOnboarding;
@@ -34,6 +35,7 @@ class _MoneyPlanSetupWizardState extends State<MoneyPlanSetupWizard> {
   late List<PlanGoal> _goals;
   late List<PlanDebt> _debts;
   late double _personal;
+  int _cycleStartDay = 1;
 
   final _incomeCtrl = TextEditingController(text: '40000');
   final _otherIncomeCtrl = TextEditingController(text: '0');
@@ -190,6 +192,7 @@ class _MoneyPlanSetupWizardState extends State<MoneyPlanSetupWizard> {
     _syncFromControllers();
     return MoneyPlanModel(
       setupComplete: complete,
+      cycleStartDay: _cycleStartDay.clamp(1, 28),
       income: _income,
       expenses: _expenses,
       investments: _investments,
@@ -303,7 +306,16 @@ class _MoneyPlanSetupWizardState extends State<MoneyPlanSetupWizard> {
                     ),
                   Center(
                     child: widget.isOnboarding
-                        ? const BrandAppIcon(size: 72)
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(18),
+                            child: Image.asset(
+                              OnboardingAssets.budget,
+                              width: 96,
+                              height: 96,
+                              fit: BoxFit.cover,
+                              filterQuality: FilterQuality.high,
+                            ),
+                          )
                         : const BrandLogo(width: 120),
                   ),
                   const SizedBox(height: 12),
@@ -438,12 +450,35 @@ class _MoneyPlanSetupWizardState extends State<MoneyPlanSetupWizard> {
     return _stepShell(
       title: 'Income',
       subtitle:
-          'Available monthly income = regular income + other income. Everything else recalculates from this.',
+          'Available monthly income = regular income + other income. Pick which day your budget month starts.',
       child: Column(
         children: [
           _field('Monthly income', _incomeCtrl, hint: '40000'),
           _field('Other regular income', _otherIncomeCtrl),
           _field('Expected minimum monthly income', _minIncomeCtrl),
+          DropdownButtonFormField<int>(
+            value: _cycleStartDay,
+            decoration: const InputDecoration(
+              labelText: 'Budget month starts on day',
+              helperText:
+                  'Example: day 7 → this cycle runs from the 7th to next month’s 7th',
+            ),
+            items: [
+              for (var d = 1; d <= 28; d++)
+                DropdownMenuItem(
+                  value: d,
+                  child: Text(
+                    d == 1
+                        ? '1 · Calendar month (1st–end)'
+                        : '$d · $d${_daySuffix(d)} → next month $d${_daySuffix(d)}',
+                  ),
+                ),
+            ],
+            onChanged: (v) {
+              if (v != null) setState(() => _cycleStartDay = v);
+            },
+          ),
+          const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             value: 'monthly',
             decoration: const InputDecoration(labelText: 'Income frequency'),
@@ -457,6 +492,20 @@ class _MoneyPlanSetupWizardState extends State<MoneyPlanSetupWizard> {
         ],
       ),
     );
+  }
+
+  String _daySuffix(int day) {
+    if (day >= 11 && day <= 13) return 'th';
+    switch (day % 10) {
+      case 1:
+        return 'st';
+      case 2:
+        return 'nd';
+      case 3:
+        return 'rd';
+      default:
+        return 'th';
+    }
   }
 
   Widget _expensesStep() {

@@ -182,8 +182,12 @@ class SmsDatabaseHelper {
     return result.map((map) => SmsMessageModel.fromMap(map)).toList();
   }
 
-  /// Pending (unsynced) credit/debit SMS since [since].
-  Future<List<SmsMessageModel>> getPendingUnsyncedSince(DateTime since) async {
+  /// Pending (unsynced) credit/debit SMS since [since], newest first.
+  /// Pass [limit] to keep the review popup light (e.g. last 5 only).
+  Future<List<SmsMessageModel>> getPendingUnsyncedSince(
+    DateTime since, {
+    int? limit,
+  }) async {
     final db = await database;
     final result = await db.query(
       'sms_messages',
@@ -196,6 +200,7 @@ class SmsDatabaseHelper {
         since.millisecondsSinceEpoch,
       ],
       orderBy: 'date DESC',
+      limit: limit,
     );
     return result.map((map) => SmsMessageModel.fromMap(map)).toList();
   }

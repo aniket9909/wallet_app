@@ -123,46 +123,51 @@ class _SmsSetupSectionState extends State<SmsSetupSection> with WidgetsBindingOb
   }
 
   Future<void> _scanInbox() async {
+    if (!mounted) return;
     SmsDebugLog.info('Inbox scan started…');
     setState(() => _isScanning = true);
-    final result = await context.read<SmsCubit>().scanInbox();
-    setState(() => _isScanning = false);
+    try {
+      final result = await context.read<SmsCubit>().scanInbox();
+      if (!mounted) return;
 
-    if (!mounted) return;
+      if (result == null) {
+        SmsDebugLog.error('Inbox scan failed');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to scan SMS. Enable permission in Settings below.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
 
-    if (result == null) {
-      SmsDebugLog.error('Inbox scan failed');
+      SmsDebugLog.ok(
+        'Inbox scan done — scanned=${result.scanned}, imported=${result.imported}, skipped=${result.skipped}',
+      );
+
+      if (result.scanned == 0 && result.imported == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('SMS permission required. Enable it below to scan inbox.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to scan SMS. Enable permission in Settings below.'),
-          backgroundColor: Colors.red,
+        SnackBar(
+          content: Text(
+            'Scanned ${result.scanned} messages — ${result.imported} debit/credit saved',
+          ),
+          backgroundColor: Colors.green,
         ),
       );
-      return;
+    } finally {
+      if (mounted) {
+        setState(() => _isScanning = false);
+      }
     }
-
-    SmsDebugLog.ok(
-      'Inbox scan done — scanned=${result.scanned}, imported=${result.imported}, skipped=${result.skipped}',
-    );
-
-    if (result.scanned == 0 && result.imported == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('SMS permission required. Enable it below to scan inbox.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Scanned ${result.scanned} messages — ${result.imported} debit/credit saved',
-        ),
-        backgroundColor: Colors.green,
-      ),
-    );
   }
 
   Future<void> _requestPermission() async {
@@ -204,6 +209,7 @@ class _SmsSetupSectionState extends State<SmsSetupSection> with WidgetsBindingOb
   Future<void> _openSystemSettings() async {
     await openAppSettings();
     await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
     await context.read<SmsCubit>().loadAllSms();
     await _refreshPermissionStatus();
     if (!mounted) return;

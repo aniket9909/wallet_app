@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../data/repositories/sms_repository.dart';
 import '../../data/services/firebase_realtime_service.dart';
 import '../../data/services/sms_coordinator_service.dart';
 import '../../data/services/overlay_cache_service.dart';
@@ -20,8 +19,14 @@ import '../../logic/cubits/sms_cubit.dart';
 import '../../logic/cubits/transaction_cubit.dart';
 import '../../logic/cubits/wallet_cubit.dart';
 
-/// Runs Firebase user setup and reloads all data streams after sign-in / register.
+/// Fast essential bootstrap for Home, then one background pass for the rest.
 class AuthBootstrap {
+  static bool _didEssential = false;
+  static bool _didBackground = false;
+  static String? _bootstrappedUid;
+
+  static bool get isEssentialReady => _didEssential;
+
   static Future<bool> setup(BuildContext context) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -29,31 +34,33 @@ class AuthBootstrap {
       return false;
     }
 
+    if (_didEssential && _bootstrappedUid == user.uid) {
+      debugPrint('AuthBootstrap: already ready for uid=${user.uid}');
+      _scheduleBackground(context);
+      return true;
+    }
+
     try {
-      // Ensure Firebase Auth token is ready before RTDB reads/writes.
-      await user.getIdToken(true);
-
+      await user.getIdToken();
       final firebase = context.read<FirebaseRealtimeService>();
-      await LocalAppDatabase.instance.database;
-      await firebase.initializeUserData();
-      await OfflineSyncService.instance.flush(firebase);
 
+      await Future.wait([
+        LocalAppDatabase.instance.database,
+        firebase.initializeUserData(),
+      ]);
+
+      // Dashboard-critical streams only.
       context.read<WalletCubit>().loadWallet();
       context.read<AccountCubit>().loadAccounts();
       context.read<TransactionCubit>().loadTransactions();
-      context.read<SavingsGoalCubit>().loadGoals();
       context.read<SettingsCubit>().loadSettings();
-      context.read<DebtCubit>().loadDebts();
-      context.read<InvestmentCubit>().loadInvestments();
-      context.read<PartialTransactionCubit>().loadPartialTransactions();
-      context.read<SmsCubit>().loadAllSms();
       context.read<MoneyPlanCubit>().loadPlan();
 
-      await context.read<SmsCoordinatorService>().startListenerIfPermitted();
-      await _syncLocalSmsIfAny(context);
-      await OverlayCacheService.syncFromLocalDatabase();
+      _didEssential = true;
+      _bootstrappedUid = user.uid;
+      debugPrint('AuthBootstrap: essential ready for uid=${user.uid}');
 
-      debugPrint('AuthBootstrap: setup complete for uid=${user.uid}');
+      _scheduleBackground(context);
       return true;
     } catch (e, st) {
       debugPrint('AuthBootstrap failed: $e\n$st');
@@ -61,19 +68,45 @@ class AuthBootstrap {
     }
   }
 
-  static Future<void> _syncLocalSmsIfAny(BuildContext context) async {
-    try {
-      final smsRepo = context.read<SmsRepository>();
-      final allSms = await smsRepo.getAllSms();
-      if (allSms.isNotEmpty) {
-        await smsRepo.syncAllToFirebase(allSms);
+  static void _scheduleBackground(BuildContext context) {
+    if (_didBackground) return;
+    _didBackground = true;
+
+    final firebase = context.read<FirebaseRealtimeService>();
+    final smsCoordinator = context.read<SmsCoordinatorService>();
+    final savings = context.read<SavingsGoalCubit>();
+    final debt = context.read<DebtCubit>();
+    final investment = context.read<InvestmentCubit>();
+    final partials = context.read<PartialTransactionCubit>();
+
+    // Wait until Home has painted and SQLite is quiet.
+    Future<void>.delayed(const Duration(seconds: 2), () async {
+      try {
+        savings.loadGoals();
+        debt.loadDebts();
+        investment.loadInvestments();
+        partials.loadPartialTransactions();
+        await OfflineSyncService.instance.flush(firebase);
+        await smsCoordinator.startListenerIfPermitted();
+      } catch (e) {
+        debugPrint('AuthBootstrap background sync skipped: $e');
       }
-    } catch (e) {
-      debugPrint('AuthBootstrap SMS sync skipped: $e');
-    }
+    });
+
+    // Overlay prefs sync much later — never fight Flutter DB on first launch.
+    Future<void>.delayed(const Duration(seconds: 5), () async {
+      try {
+        await OverlayCacheService.syncFromLocalDatabase(force: false);
+      } catch (e) {
+        debugPrint('AuthBootstrap overlay cache skipped: $e');
+      }
+    });
   }
 
   static void reset(BuildContext context) {
+    _didEssential = false;
+    _didBackground = false;
+    _bootstrappedUid = null;
     context.read<WalletCubit>().reset();
     context.read<AccountCubit>().reset();
     context.read<TransactionCubit>().reset();

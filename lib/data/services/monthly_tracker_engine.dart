@@ -1,15 +1,16 @@
 import '../models/money_plan_model.dart';
 import '../models/transaction_model_new.dart';
+import '../../core/utils/budget_cycle.dart';
 import '../../core/utils/planner_navigation.dart';
 
 enum TrackerItemStatus {
   /// Planned amount set and actual >= planned.
   fulfilled,
 
-  /// Still in the selected month and under plan.
+  /// Still in the selected cycle and under plan.
   remaining,
 
-  /// Past month and under plan.
+  /// Past cycle and under plan.
   missed,
 
   /// Actual above planned.
@@ -49,15 +50,13 @@ class TrackerLineItem {
     return (actual / planned).clamp(0.0, 1.5);
   }
 
-  TrackerItemStatus statusFor(DateTime month, {DateTime? now}) {
+  TrackerItemStatus statusFor(BudgetCycle cycle, {DateTime? now}) {
     final today = now ?? DateTime.now();
     if (planned <= 0) return TrackerItemStatus.notSetup;
     if (actual > planned) return TrackerItemStatus.over;
     if (actual >= planned) return TrackerItemStatus.fulfilled;
 
-    final isPastMonth = month.year < today.year ||
-        (month.year == today.year && month.month < today.month);
-    if (isPastMonth) return TrackerItemStatus.missed;
+    if (cycle.isPast(now: today)) return TrackerItemStatus.missed;
     return TrackerItemStatus.remaining;
   }
 }
@@ -74,12 +73,13 @@ class TrackerSectionSummary {
   double get planned => items.fold(0, (s, e) => s + e.planned);
   double get actual => items.fold(0, (s, e) => s + e.actual);
 
-  int countStatus(TrackerItemStatus status, DateTime month) =>
-      items.where((i) => i.statusFor(month) == status).length;
+  int countStatus(TrackerItemStatus status, BudgetCycle cycle) =>
+      items.where((i) => i.statusFor(cycle) == status).length;
 }
 
 class MonthlyTrackerSnapshot {
   final DateTime month;
+  final BudgetCycle cycle;
   final List<TrackerSectionSummary> sections;
   final int fulfilled;
   final int remaining;
@@ -91,6 +91,7 @@ class MonthlyTrackerSnapshot {
 
   const MonthlyTrackerSnapshot({
     required this.month,
+    required this.cycle,
     required this.sections,
     required this.fulfilled,
     required this.remaining,
@@ -108,7 +109,7 @@ class MonthlyTrackerSnapshot {
 }
 
 /// Compares Money Planner planned monthly amounts vs tagged transactions
-/// for a selected calendar month.
+/// for a selected budget cycle (calendar month when cycleStartDay == 1).
 class MonthlyTrackerEngine {
   static MonthlyTrackerSnapshot build({
     required MoneyPlanModel plan,
@@ -116,12 +117,9 @@ class MonthlyTrackerEngine {
     required DateTime month,
     DateTime? now,
   }) {
-    final monthStart = DateTime(month.year, month.month);
-    final monthEnd = DateTime(month.year, month.month + 1);
-    final monthTxns = transactions
-        .where((t) =>
-            !t.date.isBefore(monthStart) && t.date.isBefore(monthEnd))
-        .toList();
+    final cycle = BudgetCycle.fromStart(month, plan.cycleStartDay);
+    final monthTxns =
+        transactions.where((t) => cycle.contains(t.date)).toList();
 
     final sections = <TrackerSectionSummary>[
       _income(plan, monthTxns),
@@ -143,12 +141,11 @@ class MonthlyTrackerEngine {
 
     for (final section in sections) {
       for (final item in section.items) {
-        // Income is tracked separately in UI; exclude from spend totals.
         if (!item.isIncome) {
           totalPlanned += item.planned;
           totalActual += item.actual;
         }
-        switch (item.statusFor(monthStart, now: now)) {
+        switch (item.statusFor(cycle, now: now)) {
           case TrackerItemStatus.fulfilled:
             fulfilled++;
           case TrackerItemStatus.remaining:
@@ -164,7 +161,8 @@ class MonthlyTrackerEngine {
     }
 
     return MonthlyTrackerSnapshot(
-      month: monthStart,
+      month: cycle.start,
+      cycle: cycle,
       sections: sections,
       fulfilled: fulfilled,
       remaining: remaining,
@@ -176,29 +174,19 @@ class MonthlyTrackerEngine {
     );
   }
 
-  /// Months the user can filter — current month + last 11 + any txn months.
+  /// Cycle starts the user can filter — current + past + any txn cycles.
   static List<DateTime> availableMonths(
     List<TransactionModelNew> transactions, {
+    int cycleStartDay = 1,
     DateTime? now,
   }) {
-    final today = now ?? DateTime.now();
-    final set = <String, DateTime>{};
-
-    for (var i = 0; i < 12; i++) {
-      final m = DateTime(today.year, today.month - i);
-      set[_key(m)] = DateTime(m.year, m.month);
-    }
-    for (final t in transactions) {
-      final m = DateTime(t.date.year, t.date.month);
-      set[_key(m)] = m;
-    }
-
-    final list = set.values.toList()
-      ..sort((a, b) => b.compareTo(a));
-    return list;
+    final cycles = BudgetCycle.availableCycles(
+      cycleStartDay: cycleStartDay,
+      transactionDates: transactions.map((t) => t.date).toList(),
+      now: now,
+    );
+    return cycles.map((c) => c.start).toList();
   }
-
-  static String _key(DateTime m) => '${m.year}-${m.month}';
 
   static TrackerSectionSummary _income(
     MoneyPlanModel plan,
@@ -399,7 +387,6 @@ class MonthlyTrackerEngine {
     );
   }
 
-  /// Returns (amount, count) for matching txns.
   static (double, int) _matchTxns(
     List<TransactionModelNew> txns, {
     required String section,
@@ -421,7 +408,6 @@ class MonthlyTrackerEngine {
 
       bool sectionOk = txnSection == section;
       if (!sectionOk && txnSection == null) {
-        // Fallback: category equals category name without planner note.
         sectionOk = subtypeLower == nameLower;
       }
       if (!sectionOk) continue;
@@ -437,7 +423,6 @@ class MonthlyTrackerEngine {
       if (preferCredit) {
         if (!isCredit) continue;
       } else {
-        // Contributions / spend / EMI are debits from the bank account.
         if (isCredit) continue;
       }
 
